@@ -15,29 +15,29 @@ import { RuleSetRule } from "webpack";
 const alphaTabVersionFull = JSON.parse(
   fs.readFileSync(
     path.join("node_modules", "@coderline", "alphatab", "package.json"),
-    "utf8"
-  )
+    "utf8",
+  ),
 ).version;
 const isPreRelease = alphaTabVersionFull.indexOf("-") >= 0;
 let alphaTabVersion;
-let algoliaAppId = '26AE6KNYRK';
-let algoliaApiKey = '3db9646111702a74fe1f2249ddafa870';
+let algoliaAppId = "26AE6KNYRK";
+let algoliaApiKey = "3db9646111702a74fe1f2249ddafa870";
 let algoliaIndexName;
 if (isPreRelease) {
   alphaTabVersion = alphaTabVersionFull.substring(
     0,
-    alphaTabVersionFull.indexOf("-")
+    alphaTabVersionFull.indexOf("-"),
   );
-  algoliaIndexName = 'next_alphaTab';
+  algoliaIndexName = "next_alphaTab";
 } else {
   alphaTabVersion = alphaTabVersionFull;
-  algoliaIndexName = 'alphaTab';
+  algoliaIndexName = "alphaTab";
 }
 
 function getSortValue(
   prop: string,
   docs: Map<string, SidebarItemsGeneratorDoc>,
-  item: NormalizedSidebarItem
+  item: NormalizedSidebarItem,
 ): string | number | undefined {
   if (prop in item) {
     return item[prop];
@@ -105,7 +105,7 @@ const config: Config = {
     mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: "warn",
-    }
+    },
   },
   themes: ["@docusaurus/theme-mermaid"],
 
@@ -132,7 +132,7 @@ const config: Config = {
               }
 
               const docsLookup = new Map<string, SidebarItemsGeneratorDoc>(
-                args.docs.map((d) => [d.id, d])
+                args.docs.map((d) => [d.id, d]),
               );
 
               // Reverse items in categories
@@ -187,19 +187,19 @@ const config: Config = {
           customCss: "./src/css/custom.scss",
         },
         sitemap: {
-          async createSitemapItems({defaultCreateSitemapItems, ...params}) {
+          async createSitemapItems({ defaultCreateSitemapItems, ...params }) {
             const defaultItems = await defaultCreateSitemapItems(params);
-            
+
             // rank reference type docs lower than manual docs
-            for(const item of defaultItems) {
-              if(item.url.includes('reference/types')) {
+            for (const item of defaultItems) {
+              if (item.url.includes("reference/types")) {
                 item.priority = 0.1;
               }
             }
 
             return defaultItems;
           },
-        }
+        },
       } satisfies Preset.Options,
     ],
   ],
@@ -246,6 +246,12 @@ const config: Config = {
           docId: "playground/playground",
           position: "left",
           label: "Playground",
+        },
+        {
+          type: "doc",
+          docId: "rhythm-game/rhythm-game",
+          position: "left",
+          label: "Rhythm Game",
         },
         // Right
         {
@@ -313,12 +319,12 @@ const config: Config = {
       additionalLanguages: ["csharp", "diff", "kotlin", "groovy"],
     },
     colorMode: {
-      defaultMode: 'light'
+      defaultMode: "light",
     },
     algolia: {
       appId: algoliaAppId,
       apiKey: algoliaApiKey,
-      indexName: algoliaIndexName
+      indexName: algoliaIndexName,
     },
   } satisfies Preset.ThemeConfig,
 
@@ -364,7 +370,7 @@ const config: Config = {
         }
 
         const sassLoaderIndex = sassRule!.use.findIndex(
-          (l) => typeof l === "object" && l!.loader?.includes("sass-loader")
+          (l) => typeof l === "object" && l!.loader?.includes("sass-loader"),
         );
         if (sassLoaderIndex === -1) {
           throw new Error("Could not find sass-loader in rule");

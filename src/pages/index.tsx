@@ -26,6 +26,12 @@ function HomepageHeader() {
           >
             Explore Playground
           </Link>
+          <Link
+            className="button button--secondary button--lg"
+            to="/docs/rhythm-game"
+          >
+            Explore Rhythm Game
+          </Link>
         </div>
       </div>
     </header>
