@@ -21,143 +21,154 @@ export interface CrossMarkersManagerProps {
 }
 
 /**
- * Component that manages rendering red "X" marks on the AlphaTab SVG canvas
- * at specific beat positions. The markers scroll with the notation.
- * PERFORMANCE OPTIMIZED: Incremental rendering + persist markers across AlphaTab renders
+ * Component that manages rendering red "X" marks and green circle markers
+ * on the AlphaTab canvas at specific beat positions.
+ *
+ * IMPORTANT: alphaTab renders bars in "partials" — each partial is a separate
+ * <div> + <svg> positioned absolutely inside the "at-surface" container.
+ * With lazy loading enabled (default), partials scrolled out of view have their
+ * SVG content detached from the DOM.
+ *
+ * To avoid markers being drawn in the wrong partial SVG (which causes stale
+ * markers from earlier bars to appear on later bars), we create our own
+ * independent overlay <svg> inside the at-surface container.  The bounds
+ * coordinates from boundsLookup (after scaling) are absolute pixel positions
+ * relative to the canvas element, so they work directly in the overlay.
  */
 export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
   api,
   element,
   markers,
 }) => {
+  const overlaySvgRef = useRef<SVGSVGElement | null>(null);
   const markersGroupRef = useRef<SVGGElement | null>(null);
   const renderedMarkersRef = useRef<Set<string>>(new Set());
-  const svgRef = useRef<SVGElement | null>(null);
-  const observerRef = useRef<MutationObserver | null>(null);
+  // Cache the surface element in a stable ref so we don't depend on the
+  // unstable `element` prop (useAlphaTab uses React.createRef which changes
+  // identity every render).
+  const surfaceRef = useRef<HTMLElement | null>(null);
 
-  // Function to ensure markers group exists and is attached
-  const ensureMarkersGroup = useCallback(() => {
-    if (!element.current) return;
+  /**
+   * Ensure the overlay SVG exists and is attached.
+   * We attach directly to element.current (the alphaTab container div),
+   * NOT inside the at-surface, because at-surface has overflow:hidden and
+   * font-size:0 which can clip/collapse our SVG.
+   * Returns the markers <g> element or null.
+   */
+  const ensureOverlay = (): SVGGElement | null => {
+    const container = element.current;
+    if (!container) return null;
 
-    const svg = element.current.querySelector("svg");
-    if (!svg) return;
+    // Find the at-surface to read its dimensions for our overlay
+    const surface =
+      (container.querySelector(".at-surface") as HTMLElement) ?? null;
 
-    svgRef.current = svg as SVGElement;
+    // Create overlay SVG once
+    if (!overlaySvgRef.current) {
+      const svg = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "svg",
+      );
+      svg.setAttribute("overflow", "visible");
+      svg.style.position = "absolute";
+      svg.style.left = "0";
+      svg.style.top = "0";
+      svg.style.pointerEvents = "none";
+      svg.style.zIndex = "10";
 
-    // Create markers group if it doesn't exist
-    if (!markersGroupRef.current) {
-      const markersGroup = document.createElementNS(
+      const g = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "g",
       );
-      markersGroup.setAttribute("id", "cross-markers-group");
-      markersGroup.setAttribute("class", "cross-markers");
-      markersGroupRef.current = markersGroup;
+      g.setAttribute("class", "cross-markers");
+      svg.appendChild(g);
+
+      overlaySvgRef.current = svg;
+      markersGroupRef.current = g;
+
+      console.log("[CrossMarkers] Created overlay SVG");
     }
 
-    // Attach to SVG if not already attached
-    if (!svg.contains(markersGroupRef.current)) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("🔄 Reattaching markers group (AlphaTab re-rendered SVG)");
-      }
+    // Sync overlay dimensions with the at-surface (or container)
+    const sizeSource = surface ?? container;
+    const w = sizeSource.offsetWidth || sizeSource.scrollWidth || 5000;
+    const h = sizeSource.offsetHeight || sizeSource.scrollHeight || 500;
+    overlaySvgRef.current.setAttribute("width", String(w));
+    overlaySvgRef.current.setAttribute("height", String(h));
 
-      // Clear the group before reattaching to avoid duplicates
-      while (markersGroupRef.current.firstChild) {
-        markersGroupRef.current.removeChild(markersGroupRef.current.firstChild);
-      }
-
-      svg.appendChild(markersGroupRef.current);
-
-      // Reset tracking - we'll redraw all markers
-      renderedMarkersRef.current.clear();
-
-      // Redraw all markers after reattachment
-      if (api) {
-        const markersGroup = markersGroupRef.current;
-        if (process.env.NODE_ENV === "development") {
-          console.log(
-            `🎨 Redrawing ${markers.length} markers after SVG replacement`,
-          );
-        }
-        markers.forEach((marker) => {
-          // Refresh beat bounds from current rendering to avoid stale coordinates
-          let drawMarker = marker;
-          if (api.boundsLookup) {
-            const freshBounds = api.boundsLookup.findBeat(
-              marker.beatBounds.beat,
-            );
-            if (freshBounds) {
-              drawMarker = { ...marker, beatBounds: freshBounds };
-              if (marker.nextBeatBounds) {
-                const freshNext = api.boundsLookup.findBeat(
-                  marker.nextBeatBounds.beat,
-                );
-                if (freshNext) {
-                  drawMarker.nextBeatBounds = freshNext;
-                }
-              }
-            } else {
-              // Beat no longer in current rendering, skip
-              return;
-            }
-          }
-
-          if (drawMarker.type === "cross") {
-            drawCrossMarker(markersGroup, drawMarker, api);
-          } else if (drawMarker.type === "circle") {
-            drawCircleMarker(markersGroup, drawMarker, api);
-          }
-          renderedMarkersRef.current.add(marker.id);
-        });
-      }
+    // Make sure the container is a positioning context
+    if (!container.style.position) {
+      container.style.position = "relative";
     }
-  }, [element, api, markers]);
 
-  // Watch for DOM changes (AlphaTab replacing SVG)
-  useEffect(() => {
-    if (!element.current) return;
+    // (Re-)attach to the container if needed
+    if (!container.contains(overlaySvgRef.current)) {
+      container.appendChild(overlaySvgRef.current);
+      console.log("[CrossMarkers] Attached overlay to container", {
+        containerTag: container.tagName,
+        overlaySize: `${w}x${h}`,
+        overlayInDOM: overlaySvgRef.current.isConnected,
+      });
+    }
 
-    // Initial setup
-    ensureMarkersGroup();
+    return markersGroupRef.current;
+  };
 
-    // Create mutation observer to detect when AlphaTab replaces the SVG
-    observerRef.current = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === "childList") {
-          // Check if SVG was added/replaced
-          mutation.addedNodes.forEach((node) => {
-            if (
-              node.nodeName === "svg" ||
-              (node as Element).querySelector?.("svg")
-            ) {
-              // SVG was replaced, reattach markers
-              ensureMarkersGroup();
-            }
-          });
-        }
-      }
-    });
-
-    // Observe the container for changes
-    observerRef.current.observe(element.current, {
-      childList: true,
-      subtree: true,
-    });
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [element, ensureMarkersGroup]);
-
-  // Listen for AlphaTab render events
+  // ── Effect 1: attach overlay + listen to alphaTab re-renders ────────
+  // Depends only on `api` (stable identity).  We read `element.current`
+  // imperatively inside the effect — no dependency on `element` avoids
+  // constant teardown/setup caused by React.createRef() instability.
   useEffect(() => {
     if (!api) return;
 
+    // Initial attachment (at-surface should already exist by this point)
+    ensureOverlay();
+
     const onRenderFinished = () => {
-      // Ensure markers are still attached after render
-      ensureMarkersGroup();
+      // Surface element may have been recreated — invalidate cache
+      surfaceRef.current = null;
+      const group = ensureOverlay();
+      if (!group) return;
+
+      // Clear and redraw all markers with fresh bounds
+      while (group.firstChild) {
+        group.removeChild(group.firstChild);
+      }
+      renderedMarkersRef.current.clear();
+
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `🎨 Redrawing ${markers.length} markers after re-render`,
+        );
+      }
+
+      markers.forEach((marker) => {
+        let drawMarker = marker;
+        if (api.boundsLookup) {
+          const freshBounds = api.boundsLookup.findBeat(
+            marker.beatBounds.beat,
+          );
+          if (freshBounds) {
+            drawMarker = { ...marker, beatBounds: freshBounds };
+            if (marker.nextBeatBounds) {
+              const freshNext = api.boundsLookup.findBeat(
+                marker.nextBeatBounds.beat,
+              );
+              if (freshNext) {
+                drawMarker = { ...drawMarker, nextBeatBounds: freshNext };
+              }
+            }
+          } else {
+            return; // beat no longer visible
+          }
+        }
+        if (drawMarker.type === "cross") {
+          drawCrossMarker(group, drawMarker, api);
+        } else if (drawMarker.type === "circle") {
+          drawCircleMarker(group, drawMarker, api);
+        }
+        renderedMarkersRef.current.add(marker.id);
+      });
     };
 
     api.renderFinished.on(onRenderFinished);
@@ -165,53 +176,64 @@ export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
     return () => {
       api.renderFinished.off(onRenderFinished);
     };
-  }, [api, ensureMarkersGroup]);
+    // `markers` is intentionally read via closure so we always have the
+    // latest array when renderFinished fires, without re-subscribing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
 
-  // Incrementally add new markers
+  // ── Effect 2: incrementally add/remove markers ─────────────────────
   useEffect(() => {
-    if (!api || !markersGroupRef.current) return;
+    if (!api) return;
 
-    const markersGroup = markersGroupRef.current;
+    const group = ensureOverlay();
+    if (!group) {
+      console.warn("[CrossMarkers] ensureOverlay returned null, can't draw", {
+        markers: markers.length,
+      });
+      return;
+    }
 
-    // Only draw markers that haven't been rendered yet
+    // Draw only new markers
     markers.forEach((marker) => {
       if (!renderedMarkersRef.current.has(marker.id)) {
-        // Store beat ID in the marker element for future reference
+        const bounds = marker.beatBounds;
+        console.log("[CrossMarkers] Drawing marker:", {
+          id: marker.id.slice(-10),
+          type: marker.type,
+          onNotesX: bounds.onNotesX,
+          barVisualY: bounds.barBounds?.visualBounds?.y,
+          staffLine: marker.staffLineIndex,
+          groupChildren: group.children.length,
+          overlayInDOM: overlaySvgRef.current?.isConnected,
+          overlayParent: overlaySvgRef.current?.parentElement?.className,
+        });
         if (marker.type === "cross") {
-          drawCrossMarker(markersGroup, marker, api);
+          drawCrossMarker(group, marker, api);
         } else if (marker.type === "circle") {
-          drawCircleMarker(markersGroup, marker, api);
+          drawCircleMarker(group, marker, api);
         }
         renderedMarkersRef.current.add(marker.id);
       }
     });
 
-    // Clean up markers that were removed from state
-    const currentMarkerIds = new Set(markers.map((m) => m.id));
+    // Remove markers that were deleted from state
+    const currentIds = new Set(markers.map((m) => m.id));
     renderedMarkersRef.current.forEach((id) => {
-      if (!currentMarkerIds.has(id)) {
-        const markerElement = markersGroup.querySelector(
-          `[data-marker-id="${id}"]`,
-        );
-        if (markerElement) {
-          markerElement.remove();
-        }
+      if (!currentIds.has(id)) {
+        group.querySelector(`[data-marker-id="${id}"]`)?.remove();
         renderedMarkersRef.current.delete(id);
       }
     });
   }, [api, markers]);
 
-  // Cleanup on unmount
+  // ── Effect 3: cleanup on unmount ───────────────────────────────────
   useEffect(() => {
     return () => {
-      if (markersGroupRef.current) {
-        markersGroupRef.current.remove();
-        markersGroupRef.current = null;
-      }
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
+      overlaySvgRef.current?.remove();
+      overlaySvgRef.current = null;
+      markersGroupRef.current = null;
       renderedMarkersRef.current.clear();
+      surfaceRef.current = null;
     };
   }, []);
 
