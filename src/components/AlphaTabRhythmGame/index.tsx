@@ -46,8 +46,9 @@ export const AlphaTabRhythmGame: React.FC = () => {
       timingOffset?: number,
       nextBeatBounds?: alphaTab.rendering.BeatBounds,
       note?: alphaTab.model.Note,
+      startTick?: number,
     ) => {
-      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "circle", note);
+      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "circle", note, startTick);
     },
     [addMarker],
   );
@@ -58,8 +59,10 @@ export const AlphaTabRhythmGame: React.FC = () => {
       staffLineIndex: number,
       timingOffset?: number,
       nextBeatBounds?: alphaTab.rendering.BeatBounds,
+      note?: alphaTab.model.Note,
+      startTick?: number,
     ) => {
-      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "cross");
+      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "cross", note, startTick);
     },
     [addMarker],
   );

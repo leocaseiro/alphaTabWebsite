@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useEffect } from "react";
 import * as alphaTab from "@coderline/alphatab";
 import { useMidiInput, MidiInputEvent } from "./useMidiInput";
 import { useRhythmGameScore, TIMING_WINDOWS } from "./useRhythmGameScore";
-import { addSuccessMarkersForMatchedNotes } from "./circle-marker-helpers";
+import { addSuccessMarkersForMatchedNotes, getMidiNoteNumber, getWrongNotePosition } from "./circle-marker-helpers";
 import { calculateTimingFeedback } from "./rhythm-game-helpers";
 
 interface MidiRhythmGameProps {
@@ -15,12 +15,15 @@ interface MidiRhythmGameProps {
     timingOffset?: number,
     nextBeatBounds?: alphaTab.rendering.BeatBounds,
     note?: alphaTab.model.Note,
+    startTick?: number,
   ) => void;
   onAddCrossMarker: (
     beatBounds: alphaTab.rendering.BeatBounds,
     staffLineIndex: number,
     timingOffset?: number,
     nextBeatBounds?: alphaTab.rendering.BeatBounds,
+    note?: alphaTab.model.Note,
+    startTick?: number,
   ) => void;
 }
 
@@ -117,13 +120,12 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
       timingResult = "missed";
     }
 
-    // Use the existing helper to match notes
+    // Use the existing helper to match notes (circles only — crosses handled below)
     const result = addSuccessMarkersForMatchedNotes(
       api,
       currentTick,
       [{ midiNote: event.midiNote }],
       onAddCircleMarkerRef.current,
-      onAddCrossMarkerRef.current,
     );
 
     // Check if the note was matched
@@ -139,17 +141,31 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           matched: result.matchedNotes.map((n) => ({
             string: n.string,
             fret: n.fret,
-            realValue: n.realValue,
+            midiNote: getMidiNoteNumber(n),
           })),
         });
       }
     } else if (result.wrongInputs.length > 0) {
-      // Wrong note
+      // Wrong note — add a cross marker for EACH wrong input.
+      // Resolve the correct staff line and beat bounds for the MIDI note hit.
+      const wrongPos = getWrongNotePosition(api, currentTick, event.midiNote);
+
+      result.wrongInputs.forEach(() => {
+        onAddCrossMarkerRef.current(
+          wrongPos?.beatBounds ?? feedback.beatBounds,
+          wrongPos?.staffLineIndex ?? 2,
+          wrongPos?.timingOffset ?? feedback.timingOffset,
+          wrongPos?.nextBeatBounds ?? feedback.nextBeatBounds,
+          undefined, // no specific note → cross won't be deduped
+          wrongPos?.startTick ?? feedback.startTick,
+        );
+      });
       recordHit("error");
       if (process.env.NODE_ENV === "development") {
         console.log("❌ Wrong note!", {
           inputNote: event.midiNote,
-          expectedNotes: feedback.beat.notes.map((n) => n.realValue),
+          staffLineIndex: wrongPos?.staffLineIndex ?? 2,
+          expectedNotes: feedback.beat.notes.map((n) => getMidiNoteNumber(n)),
         });
       }
     }

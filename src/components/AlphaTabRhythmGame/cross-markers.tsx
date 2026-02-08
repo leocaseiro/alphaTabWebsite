@@ -11,6 +11,7 @@ export interface CrossMarker {
   timingOffset?: number; // Optional: offset from beat start (0.0 = on beat, 0.5 = halfway to next beat)
   nextBeatBounds?: alphaTab.rendering.BeatBounds; // Optional: for interpolating position between beats
   note?: alphaTab.model.Note; // Optional: specific note to highlight (for circles)
+  beatId?: string; // Unique identifier for the beat (bar index + beat index)
 }
 
 export interface CrossMarkersManagerProps {
@@ -56,17 +57,57 @@ export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
 
     // Attach to SVG if not already attached
     if (!svg.contains(markersGroupRef.current)) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("🔄 Reattaching markers group (AlphaTab re-rendered SVG)");
+      }
+
+      // Clear the group before reattaching to avoid duplicates
+      while (markersGroupRef.current.firstChild) {
+        markersGroupRef.current.removeChild(markersGroupRef.current.firstChild);
+      }
+
       svg.appendChild(markersGroupRef.current);
-      
+
+      // Reset tracking - we'll redraw all markers
+      renderedMarkersRef.current.clear();
+
       // Redraw all markers after reattachment
       if (api) {
         const markersGroup = markersGroupRef.current;
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            `🎨 Redrawing ${markers.length} markers after SVG replacement`,
+          );
+        }
         markers.forEach((marker) => {
-          if (marker.type === "cross") {
-            drawCrossMarker(markersGroup, marker, api);
-          } else if (marker.type === "circle") {
-            drawCircleMarker(markersGroup, marker, api);
+          // Refresh beat bounds from current rendering to avoid stale coordinates
+          let drawMarker = marker;
+          if (api.boundsLookup) {
+            const freshBounds = api.boundsLookup.findBeat(
+              marker.beatBounds.beat,
+            );
+            if (freshBounds) {
+              drawMarker = { ...marker, beatBounds: freshBounds };
+              if (marker.nextBeatBounds) {
+                const freshNext = api.boundsLookup.findBeat(
+                  marker.nextBeatBounds.beat,
+                );
+                if (freshNext) {
+                  drawMarker.nextBeatBounds = freshNext;
+                }
+              }
+            } else {
+              // Beat no longer in current rendering, skip
+              return;
+            }
           }
+
+          if (drawMarker.type === "cross") {
+            drawCrossMarker(markersGroup, drawMarker, api);
+          } else if (drawMarker.type === "circle") {
+            drawCircleMarker(markersGroup, drawMarker, api);
+          }
+          renderedMarkersRef.current.add(marker.id);
         });
       }
     }
@@ -85,7 +126,10 @@ export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
         if (mutation.type === "childList") {
           // Check if SVG was added/replaced
           mutation.addedNodes.forEach((node) => {
-            if (node.nodeName === "svg" || (node as Element).querySelector?.("svg")) {
+            if (
+              node.nodeName === "svg" ||
+              (node as Element).querySelector?.("svg")
+            ) {
               // SVG was replaced, reattach markers
               ensureMarkersGroup();
             }
@@ -132,6 +176,7 @@ export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
     // Only draw markers that haven't been rendered yet
     markers.forEach((marker) => {
       if (!renderedMarkersRef.current.has(marker.id)) {
+        // Store beat ID in the marker element for future reference
         if (marker.type === "cross") {
           drawCrossMarker(markersGroup, marker, api);
         } else if (marker.type === "circle") {
@@ -190,12 +235,8 @@ function drawCrossMarker(
   const crossSize = lineSpacing * 1.2; // Slightly smaller than a full note head
 
   // Calculate Y position based on staff line index
-  // For guitar tabs, notes are positioned in the spaces between lines, not on the lines
-  // Staff lines are at indices 0, 1, 2, 3, 4, 5 for a 6-string guitar
+  // staffLineIndex controls which line the cross is drawn on
   const staffTopY = bounds.barBounds.visualBounds.y;
-
-  // Position in the center of the string space (between lines)
-  // Add half a line spacing to move from the line to the center of the space
   const staffLineY =
     staffTopY + marker.staffLineIndex * lineSpacing + lineSpacing / 2;
 
@@ -220,6 +261,9 @@ function drawCrossMarker(
   );
   markerGroup.setAttribute("class", "cross-marker");
   markerGroup.setAttribute("data-marker-id", marker.id);
+  if (marker.beatId) {
+    markerGroup.setAttribute("data-beat-id", marker.beatId);
+  }
 
   // Create the X shape using two lines
   const halfSize = crossSize / 2;
@@ -300,6 +344,9 @@ function drawCircleMarker(
   );
   markerGroup.setAttribute("class", "circle-marker");
   markerGroup.setAttribute("data-marker-id", marker.id);
+  if (marker.beatId) {
+    markerGroup.setAttribute("data-beat-id", marker.beatId);
+  }
 
   // Create the circle
   const circle = document.createElementNS(
@@ -320,36 +367,98 @@ function drawCircleMarker(
 /**
  * Hook to manage cross markers state
  * PERFORMANCE OPTIMIZED: Stable callbacks that don't cause unnecessary re-renders
+ * Prevents duplicate markers on the same beat
  */
 export function useCrossMarkers() {
   const [markers, setMarkers] = useState<CrossMarker[]>([]);
   const markersRef = useRef<CrossMarker[]>([]);
+  const markedBeatsRef = useRef<Set<string>>(new Set()); // Track which beats have markers
 
   // Sync ref with state
   useEffect(() => {
     markersRef.current = markers;
+    // Update marked beats set
+    markedBeatsRef.current = new Set(
+      markers.map((m) => m.beatId).filter((id): id is string => !!id),
+    );
   }, [markers]);
 
+  // Generate unique beat ID from beat bounds
+  const generateBeatId = useCallback(
+    (
+      beatBounds: alphaTab.rendering.BeatBounds,
+      staffLineIndex: number,
+      note?: alphaTab.model.Note,
+      startTick?: number,
+    ): string => {
+      // Use bar index + beat index + staff line + optional note info for unique ID
+      const beat = beatBounds.beat;
+      const barIndex = beat.voice.bar.index;
+      const beatIndex = beat.index;
+      const trackIndex = beat.voice.bar.staff.track.index;
+
+      let id = `beat-${trackIndex}-${barIndex}-${beatIndex}-${staffLineIndex}`;
+
+      // Include note info if provided for more granular markers
+      if (note) {
+        id += `-note-${note.string}-${note.fret}`;
+      }
+
+      // Include start tick to distinguish repeat passes
+      // (same bar played in different repeat iterations has different ticks)
+      if (startTick !== undefined) {
+        id += `-t${startTick}`;
+      }
+
+      return id;
+    },
+    [],
+  );
+
   // Stable callbacks using useCallback
-  const addMarker = useCallback((
-    beatBounds: alphaTab.rendering.BeatBounds,
-    staffLineIndex: number = 2,
-    timingOffset?: number,
-    nextBeatBounds?: alphaTab.rendering.BeatBounds,
-    type: "cross" | "circle" = "cross",
-    note?: alphaTab.model.Note,
-  ) => {
-    const newMarker: CrossMarker = {
-      id: `marker-${Date.now()}-${Math.random()}`,
-      type,
-      beatBounds,
-      staffLineIndex,
-      timingOffset,
-      nextBeatBounds,
-      note,
-    };
-    setMarkers((prev) => [...prev, newMarker]);
-  }, []);
+  const addMarker = useCallback(
+    (
+      beatBounds: alphaTab.rendering.BeatBounds,
+      staffLineIndex: number = 2,
+      timingOffset?: number,
+      nextBeatBounds?: alphaTab.rendering.BeatBounds,
+      type: "cross" | "circle" = "cross",
+      note?: alphaTab.model.Note,
+      startTick?: number,
+    ) => {
+      const beatId = generateBeatId(beatBounds, staffLineIndex, note, startTick);
+
+      // Deduplicate circles and "missed note" crosses (which have a specific note).
+      // Wrong-input crosses (no note) are never deduped — each wrong hit is a
+      // separate event and should produce its own marker.
+      const shouldDedup = type === "circle" || (type === "cross" && note != null);
+      if (shouldDedup) {
+        const existingMarker = markersRef.current.find(
+          (m) => m.beatId === beatId && m.type === type,
+        );
+
+        if (existingMarker) {
+          if (process.env.NODE_ENV === "development") {
+            console.log(`Skipping duplicate ${type} marker for beat:`, beatId);
+          }
+          return;
+        }
+      }
+
+      const newMarker: CrossMarker = {
+        id: `marker-${Date.now()}-${Math.random()}`,
+        type,
+        beatBounds,
+        staffLineIndex,
+        timingOffset,
+        nextBeatBounds,
+        note,
+        beatId,
+      };
+      setMarkers((prev) => [...prev, newMarker]);
+    },
+    [generateBeatId],
+  );
 
   const removeMarker = useCallback((id: string) => {
     setMarkers((prev) => prev.filter((m) => m.id !== id));
@@ -357,6 +466,7 @@ export function useCrossMarkers() {
 
   const clearMarkers = useCallback(() => {
     setMarkers([]);
+    markedBeatsRef.current.clear();
   }, []);
 
   return {

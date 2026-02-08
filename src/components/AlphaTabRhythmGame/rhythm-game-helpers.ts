@@ -12,6 +12,7 @@ export interface TimingFeedback {
   beat: alphaTab.model.Beat;
   beatBounds: alphaTab.rendering.BeatBounds;
   nextBeatBounds?: alphaTab.rendering.BeatBounds;
+  startTick: number; // Absolute tick for this playback pass (unique per repeat iteration)
 }
 
 export interface TimingWindow {
@@ -102,6 +103,7 @@ export function calculateTimingFeedback(
     beat,
     beatBounds,
     nextBeatBounds,
+    startTick: beatStartTick,
   };
 }
 
