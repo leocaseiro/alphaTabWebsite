@@ -48,7 +48,15 @@ export const AlphaTabRhythmGame: React.FC = () => {
       note?: alphaTab.model.Note,
       startTick?: number,
     ) => {
-      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "circle", note, startTick);
+      addMarker(
+        beatBounds,
+        staffLineIndex,
+        timingOffset,
+        nextBeatBounds,
+        "circle",
+        note,
+        startTick,
+      );
     },
     [addMarker],
   );
@@ -62,7 +70,15 @@ export const AlphaTabRhythmGame: React.FC = () => {
       note?: alphaTab.model.Note,
       startTick?: number,
     ) => {
-      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "cross", note, startTick);
+      addMarker(
+        beatBounds,
+        staffLineIndex,
+        timingOffset,
+        nextBeatBounds,
+        "cross",
+        note,
+        startTick,
+      );
     },
     [addMarker],
   );
@@ -79,6 +95,7 @@ export const AlphaTabRhythmGame: React.FC = () => {
     s.player.scrollOffsetX = -300;
     s.player.playerMode = alphaTab.PlayerMode.EnabledSynthesizer;
     s.display.layoutMode = alphaTab.LayoutMode.Horizontal;
+    s.player.playTripletFeel = false; // disable Play Swing
   });
 
   useEffect(() => {
