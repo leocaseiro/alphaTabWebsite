@@ -216,9 +216,12 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
     return () => clearInterval(interval);
   }, [isPlaying, getScore]);
 
-  // Reset and log final score when playback stops
+  // Log final score when playback stops, reset score when playback starts
   useEffect(() => {
-    if (!isPlaying) {
+    if (isPlaying) {
+      // Reset score at the start of each playback session
+      resetScore();
+    } else {
       const score = getScore();
       if (score.totalNotes > 0) {
         if (process.env.NODE_ENV === "development") {
@@ -234,7 +237,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
         }
       }
     }
-  }, [isPlaying, getScore]);
+  }, [isPlaying, getScore, resetScore]);
 
   // Display MIDI status (for debugging)
   if (!isSupported && process.env.NODE_ENV === "development") {
