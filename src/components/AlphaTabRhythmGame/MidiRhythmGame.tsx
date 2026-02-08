@@ -1,0 +1,234 @@
+import React, { useCallback, useRef, useEffect } from "react";
+import * as alphaTab from "@coderline/alphatab";
+import { useMidiInput, MidiInputEvent } from "./useMidiInput";
+import { useRhythmGameScore, TIMING_WINDOWS } from "./useRhythmGameScore";
+import { addSuccessMarkersForMatchedNotes } from "./circle-marker-helpers";
+import { calculateTimingFeedback } from "./rhythm-game-helpers";
+
+interface MidiRhythmGameProps {
+  api: alphaTab.AlphaTabApi | null;
+  isPlaying: boolean;
+  currentTick: number;
+  onAddCircleMarker: (
+    beatBounds: alphaTab.rendering.BeatBounds,
+    staffLineIndex: number,
+    timingOffset?: number,
+    nextBeatBounds?: alphaTab.rendering.BeatBounds,
+    note?: alphaTab.model.Note,
+  ) => void;
+  onAddCrossMarker: (
+    beatBounds: alphaTab.rendering.BeatBounds,
+    staffLineIndex: number,
+    timingOffset?: number,
+    nextBeatBounds?: alphaTab.rendering.BeatBounds,
+  ) => void;
+}
+
+/**
+ * MIDI Rhythm Game Integration
+ * PERFORMANCE OPTIMIZED for minimal latency
+ *
+ * Listens to MIDI inputs and processes them for rhythm game scoring
+ * - Detects timing accuracy (Perfect: ±50ms, Good: ±300ms)
+ * - Adds visual markers (circles for hits, crosses for misses)
+ * - Tracks score statistics
+ *
+ * Performance optimizations:
+ * - Uses refs for frequently changing values (currentTick, isPlaying)
+ * - Stable MIDI callback with no dependency changes
+ * - Minimal console logging (dev only)
+ * - No state updates in hot path
+ */
+export const MidiRhythmGame = React.memo(function MidiRhythmGame({
+  api,
+  isPlaying,
+  currentTick,
+  onAddCircleMarker,
+  onAddCrossMarker,
+}: MidiRhythmGameProps) {
+  const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
+
+  // Use refs for values that change frequently to avoid recreating callbacks
+  const apiRef = useRef(api);
+  const isPlayingRef = useRef(isPlaying);
+  const currentTickRef = useRef(currentTick);
+  const onAddCircleMarkerRef = useRef(onAddCircleMarker);
+  const onAddCrossMarkerRef = useRef(onAddCrossMarker);
+
+  // Update refs when props change (no re-render of MIDI handler)
+  useEffect(() => {
+    apiRef.current = api;
+  }, [api]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    currentTickRef.current = currentTick;
+  }, [currentTick]);
+
+  useEffect(() => {
+    onAddCircleMarkerRef.current = onAddCircleMarker;
+  }, [onAddCircleMarker]);
+
+  useEffect(() => {
+    onAddCrossMarkerRef.current = onAddCrossMarker;
+  }, [onAddCrossMarker]);
+
+  // Stable MIDI handler with ZERO dependencies - critical for performance
+  const handleMidiMessage = useCallback((event: MidiInputEvent) => {
+    // Only process note-on events during playback
+    if (event.type !== "noteOn" || !isPlayingRef.current || !apiRef.current) {
+      return;
+    }
+
+    const api = apiRef.current;
+    const currentTick = currentTickRef.current;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("🎹 MIDI Input received:", {
+        note: event.midiNote,
+        velocity: event.velocity,
+        portName: event.portName,
+      });
+    }
+
+    // Calculate timing feedback
+    const feedback = calculateTimingFeedback(api, currentTick);
+
+    if (!feedback) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("❌ No beat found at current position");
+      }
+      recordHit("error");
+      return;
+    }
+
+    // Check timing window - use absolute value for speed
+    const timingOffsetMs = Math.abs(feedback.timingOffset * 1000);
+
+    let timingResult: "perfect" | "good" | "missed";
+    if (timingOffsetMs <= TIMING_WINDOWS.PERFECT) {
+      timingResult = "perfect";
+    } else if (timingOffsetMs <= TIMING_WINDOWS.GOOD) {
+      timingResult = "good";
+    } else {
+      timingResult = "missed";
+    }
+
+    // Use the existing helper to match notes
+    const result = addSuccessMarkersForMatchedNotes(
+      api,
+      currentTick,
+      [{ midiNote: event.midiNote }],
+      onAddCircleMarkerRef.current,
+      onAddCrossMarkerRef.current,
+    );
+
+    // Check if the note was matched
+    if (result.matchedNotes.length > 0) {
+      // Correct note hit
+      recordHit(timingResult);
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("✅ Correct hit!", {
+          timing: timingResult,
+          timingOffset: `${timingOffsetMs.toFixed(1)}ms`,
+          note: event.midiNote,
+          matched: result.matchedNotes.map((n) => ({
+            string: n.string,
+            fret: n.fret,
+            realValue: n.realValue,
+          })),
+        });
+      }
+    } else if (result.wrongInputs.length > 0) {
+      // Wrong note
+      recordHit("error");
+      if (process.env.NODE_ENV === "development") {
+        console.log("❌ Wrong note!", {
+          inputNote: event.midiNote,
+          expectedNotes: feedback.beat.notes.map((n) => n.realValue),
+        });
+      }
+    }
+  }, [recordHit]); // Only recordHit dependency - stable function
+
+  // Initialize MIDI input hook
+  const { isSupported, isConnected, inputs, error } = useMidiInput(
+    handleMidiMessage,
+    true, // Always enabled
+  );
+
+  // Log MIDI status (once on mount/change)
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("🎮 MIDI Rhythm Game Status:", {
+        supported: isSupported,
+        connected: isConnected,
+        devices: inputs.length,
+        inputs: inputs.map((i) => i.name),
+      });
+    }
+  }, [isSupported, isConnected, inputs]);
+
+  // Log score changes periodically (throttled to avoid spam)
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const score = getScore();
+      if (score.totalNotes > 0 || score.errors > 0) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("📊 Current Score:", {
+            accuracy: `${score.accuracy}%`,
+            perfect: score.perfect,
+            good: score.good,
+            missed: score.missed,
+            errors: score.errors,
+            streak: score.streak,
+            maxStreak: score.maxStreak,
+            total: score.totalNotes,
+          });
+        }
+      }
+    }, 2000); // Log every 2 seconds instead of on every hit
+
+    return () => clearInterval(interval);
+  }, [isPlaying, getScore]);
+
+  // Reset and log final score when playback stops
+  useEffect(() => {
+    if (!isPlaying) {
+      const score = getScore();
+      if (score.totalNotes > 0) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("🏁 Final Score:", {
+            accuracy: `${score.accuracy}%`,
+            perfect: score.perfect,
+            good: score.good,
+            missed: score.missed,
+            errors: score.errors,
+            maxStreak: score.maxStreak,
+            total: score.totalNotes,
+          });
+        }
+      }
+    }
+  }, [isPlaying, getScore]);
+
+  // Display MIDI status (for debugging)
+  if (!isSupported && process.env.NODE_ENV === "development") {
+    console.warn("⚠️ Web MIDI API not supported in this browser");
+  }
+
+  if (error && process.env.NODE_ENV === "development") {
+    console.error("❌ MIDI Error:", error);
+  }
+
+  // This component doesn't render anything - it's just for logic
+  return null;
+});

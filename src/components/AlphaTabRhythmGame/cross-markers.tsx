@@ -1,7 +1,7 @@
 "use client";
 
 import * as alphaTab from "@coderline/alphatab";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 export interface CrossMarker {
   id: string;
@@ -22,6 +22,7 @@ export interface CrossMarkersManagerProps {
 /**
  * Component that manages rendering red "X" marks on the AlphaTab SVG canvas
  * at specific beat positions. The markers scroll with the notation.
+ * PERFORMANCE OPTIMIZED: Incremental rendering + persist markers across AlphaTab renders
  */
 export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
   api,
@@ -29,13 +30,90 @@ export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
   markers,
 }) => {
   const markersGroupRef = useRef<SVGGElement | null>(null);
-  const [renderVersion, setRenderVersion] = useState(0);
+  const renderedMarkersRef = useRef<Set<string>>(new Set());
+  const svgRef = useRef<SVGElement | null>(null);
+  const observerRef = useRef<MutationObserver | null>(null);
 
+  // Function to ensure markers group exists and is attached
+  const ensureMarkersGroup = useCallback(() => {
+    if (!element.current) return;
+
+    const svg = element.current.querySelector("svg");
+    if (!svg) return;
+
+    svgRef.current = svg as SVGElement;
+
+    // Create markers group if it doesn't exist
+    if (!markersGroupRef.current) {
+      const markersGroup = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "g",
+      );
+      markersGroup.setAttribute("id", "cross-markers-group");
+      markersGroup.setAttribute("class", "cross-markers");
+      markersGroupRef.current = markersGroup;
+    }
+
+    // Attach to SVG if not already attached
+    if (!svg.contains(markersGroupRef.current)) {
+      svg.appendChild(markersGroupRef.current);
+      
+      // Redraw all markers after reattachment
+      if (api) {
+        const markersGroup = markersGroupRef.current;
+        markers.forEach((marker) => {
+          if (marker.type === "cross") {
+            drawCrossMarker(markersGroup, marker, api);
+          } else if (marker.type === "circle") {
+            drawCircleMarker(markersGroup, marker, api);
+          }
+        });
+      }
+    }
+  }, [element, api, markers]);
+
+  // Watch for DOM changes (AlphaTab replacing SVG)
+  useEffect(() => {
+    if (!element.current) return;
+
+    // Initial setup
+    ensureMarkersGroup();
+
+    // Create mutation observer to detect when AlphaTab replaces the SVG
+    observerRef.current = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "childList") {
+          // Check if SVG was added/replaced
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeName === "svg" || (node as Element).querySelector?.("svg")) {
+              // SVG was replaced, reattach markers
+              ensureMarkersGroup();
+            }
+          });
+        }
+      }
+    });
+
+    // Observe the container for changes
+    observerRef.current.observe(element.current, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [element, ensureMarkersGroup]);
+
+  // Listen for AlphaTab render events
   useEffect(() => {
     if (!api) return;
 
     const onRenderFinished = () => {
-      setRenderVersion((v) => v + 1);
+      // Ensure markers are still attached after render
+      ensureMarkersGroup();
     };
 
     api.renderFinished.on(onRenderFinished);
@@ -43,49 +121,56 @@ export const CrossMarkersManager: React.FC<CrossMarkersManagerProps> = ({
     return () => {
       api.renderFinished.off(onRenderFinished);
     };
-  }, [api]);
+  }, [api, ensureMarkersGroup]);
 
+  // Incrementally add new markers
   useEffect(() => {
-    if (!api || !element.current) return;
+    if (!api || !markersGroupRef.current) return;
 
-    // Find the SVG element in the container div
-    const svg = element.current.querySelector("svg");
-    if (!svg) return;
+    const markersGroup = markersGroupRef.current;
 
-    // Remove previous markers group if exists
-    if (markersGroupRef.current) {
-      markersGroupRef.current.remove();
-      markersGroupRef.current = null;
-    }
-
-    // Create a new group for markers
-    const markersGroup = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "g",
-    );
-    markersGroup.setAttribute("id", "cross-markers-group");
-    markersGroup.setAttribute("class", "cross-markers");
-    svg.appendChild(markersGroup);
-    markersGroupRef.current = markersGroup;
-
-    // Draw all markers
+    // Only draw markers that haven't been rendered yet
     markers.forEach((marker) => {
-      if (marker.type === "cross") {
-        drawCrossMarker(markersGroup, marker, api);
-      } else if (marker.type === "circle") {
-        drawCircleMarker(markersGroup, marker, api);
+      if (!renderedMarkersRef.current.has(marker.id)) {
+        if (marker.type === "cross") {
+          drawCrossMarker(markersGroup, marker, api);
+        } else if (marker.type === "circle") {
+          drawCircleMarker(markersGroup, marker, api);
+        }
+        renderedMarkersRef.current.add(marker.id);
       }
     });
 
+    // Clean up markers that were removed from state
+    const currentMarkerIds = new Set(markers.map((m) => m.id));
+    renderedMarkersRef.current.forEach((id) => {
+      if (!currentMarkerIds.has(id)) {
+        const markerElement = markersGroup.querySelector(
+          `[data-marker-id="${id}"]`,
+        );
+        if (markerElement) {
+          markerElement.remove();
+        }
+        renderedMarkersRef.current.delete(id);
+      }
+    });
+  }, [api, markers]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       if (markersGroupRef.current) {
         markersGroupRef.current.remove();
         markersGroupRef.current = null;
       }
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+      renderedMarkersRef.current.clear();
     };
-  }, [api, element, markers, renderVersion]);
+  }, []);
 
-  return null; // This component doesn't render React elements
+  return null;
 };
 
 /**
@@ -234,11 +319,19 @@ function drawCircleMarker(
 
 /**
  * Hook to manage cross markers state
+ * PERFORMANCE OPTIMIZED: Stable callbacks that don't cause unnecessary re-renders
  */
 export function useCrossMarkers() {
   const [markers, setMarkers] = useState<CrossMarker[]>([]);
+  const markersRef = useRef<CrossMarker[]>([]);
 
-  const addMarker = (
+  // Sync ref with state
+  useEffect(() => {
+    markersRef.current = markers;
+  }, [markers]);
+
+  // Stable callbacks using useCallback
+  const addMarker = useCallback((
     beatBounds: alphaTab.rendering.BeatBounds,
     staffLineIndex: number = 2,
     timingOffset?: number,
@@ -256,15 +349,15 @@ export function useCrossMarkers() {
       note,
     };
     setMarkers((prev) => [...prev, newMarker]);
-  };
+  }, []);
 
-  const removeMarker = (id: string) => {
+  const removeMarker = useCallback((id: string) => {
     setMarkers((prev) => prev.filter((m) => m.id !== id));
-  };
+  }, []);
 
-  const clearMarkers = () => {
+  const clearMarkers = useCallback(() => {
     setMarkers([]);
-  };
+  }, []);
 
   return {
     markers,

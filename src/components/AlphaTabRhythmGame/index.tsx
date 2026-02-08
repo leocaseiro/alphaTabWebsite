@@ -23,6 +23,7 @@ import {
 } from "./helpers";
 import { YouTubePlayer } from "./youtube-player";
 import { CrossMarkersManager, useCrossMarkers } from "./cross-markers";
+import { MidiRhythmGame } from "./MidiRhythmGame";
 
 export const AlphaTabRhythmGame: React.FC = () => {
   const viewPortRef = React.createRef<HTMLDivElement>();
@@ -34,6 +35,34 @@ export const AlphaTabRhythmGame: React.FC = () => {
   });
   const youtubePlayer = useRef<HTMLMediaElementLike | null>(null);
   const { markers, addMarker, clearMarkers } = useCrossMarkers();
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTick, setCurrentTick] = useState(0);
+
+  // Memoize marker callbacks for MIDI game to avoid recreating on every render
+  const handleAddCircleMarker = useCallback(
+    (
+      beatBounds: alphaTab.rendering.BeatBounds,
+      staffLineIndex: number,
+      timingOffset?: number,
+      nextBeatBounds?: alphaTab.rendering.BeatBounds,
+      note?: alphaTab.model.Note,
+    ) => {
+      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "circle", note);
+    },
+    [addMarker],
+  );
+
+  const handleAddCrossMarker = useCallback(
+    (
+      beatBounds: alphaTab.rendering.BeatBounds,
+      staffLineIndex: number,
+      timingOffset?: number,
+      nextBeatBounds?: alphaTab.rendering.BeatBounds,
+    ) => {
+      addMarker(beatBounds, staffLineIndex, timingOffset, nextBeatBounds, "cross");
+    },
+    [addMarker],
+  );
 
   const [api, element] = useAlphaTab((s) => {
     s.core.engine = "svg";
@@ -89,6 +118,16 @@ export const AlphaTabRhythmGame: React.FC = () => {
         type: MediaType.Synth,
       });
     }
+  });
+
+  // Track playback state
+  useAlphaTabEvent(api, "playerStateChanged", (e) => {
+    setIsPlaying(e.state === alphaTab.synth.PlayerState.Playing);
+  });
+
+  // Track current tick for rhythm game
+  useAlphaTabEvent(api, "playerPositionChanged", (e) => {
+    setCurrentTick(e.currentTick);
   });
 
   const onDragOver = (e: React.DragEvent) => {
@@ -299,6 +338,15 @@ export const AlphaTabRhythmGame: React.FC = () => {
           api={api ?? null}
           element={element}
           markers={markers}
+        />
+
+        {/* MIDI Rhythm Game Integration */}
+        <MidiRhythmGame
+          api={api ?? null}
+          isPlaying={isPlaying}
+          currentTick={currentTick}
+          onAddCircleMarker={handleAddCircleMarker}
+          onAddCrossMarker={handleAddCrossMarker}
         />
 
         <div className={styles["at-footer"]}>
