@@ -25,6 +25,7 @@ interface MidiRhythmGameProps {
     note?: alphaTab.model.Note,
     startTick?: number,
   ) => void;
+  onClearMarkers: () => void;
 }
 
 /**
@@ -48,6 +49,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   currentTick,
   onAddCircleMarker,
   onAddCrossMarker,
+  onClearMarkers,
 }: MidiRhythmGameProps) {
   const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
 
@@ -57,6 +59,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const currentTickRef = useRef(currentTick);
   const onAddCircleMarkerRef = useRef(onAddCircleMarker);
   const onAddCrossMarkerRef = useRef(onAddCrossMarker);
+  const prevTickRef = useRef(currentTick);
 
   // Update refs when props change (no re-render of MIDI handler)
   useEffect(() => {
@@ -66,6 +69,29 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  // Detect loop reset: tick jumps backward while isLooping is enabled
+  useEffect(() => {
+    const prevTick = prevTickRef.current;
+    prevTickRef.current = currentTick;
+
+    // A significant backward tick jump during playback + looping = loop reset
+    // Threshold of 960 ticks (one quarter note) avoids false positives from jitter
+    if (
+      isPlaying &&
+      apiRef.current?.isLooping &&
+      currentTick < prevTick - 960
+    ) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("🔄 Loop detected — clearing markers, keeping score", {
+          prevTick,
+          currentTick,
+          score: getScore(),
+        });
+      }
+      onClearMarkers();
+    }
+  }, [currentTick, isPlaying, onClearMarkers, getScore]);
 
   useEffect(() => {
     currentTickRef.current = currentTick;

@@ -100,8 +100,8 @@ export const AlphaTabRhythmGame: React.FC = () => {
 
   useEffect(() => {
     if (api) {
-      api.countInVolume = 0;
-      // api.countInVolume = 1;
+      // api.countInVolume = 0;
+      api.countInVolume = 1;
     }
   }, [api]);
 
@@ -367,6 +367,7 @@ export const AlphaTabRhythmGame: React.FC = () => {
           currentTick={currentTick}
           onAddCircleMarker={handleAddCircleMarker}
           onAddCrossMarker={handleAddCrossMarker}
+          onClearMarkers={clearMarkers}
         />
 
         <div className={styles["at-footer"]}>
