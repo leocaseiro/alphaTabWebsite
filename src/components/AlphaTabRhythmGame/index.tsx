@@ -376,6 +376,7 @@ export const AlphaTabRhythmGame: React.FC = () => {
           {api && (
             <PlayerControlsGroup
               api={api}
+              viewPortRef={viewPortRef}
               sidePanel={sidePanel}
               onSidePanelChange={setSidePanel}
               bottomPanel={bottomPanel}

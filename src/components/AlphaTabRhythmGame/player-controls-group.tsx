@@ -1,6 +1,6 @@
 import * as alphaTab from "@coderline/alphatab";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
@@ -19,6 +19,7 @@ export interface PlayerControlsGroupProps {
   bottomPanel: BottomPanel;
   onBottomPanelChange: (sidePanel: BottomPanel) => void;
   api: alphaTab.AlphaTabApi;
+  viewPortRef?: React.RefObject<HTMLDivElement | null>;
   onAddCrossMarker: (
     beatBounds: alphaTab.rendering.BeatBounds,
     staffLineIndex: number,
@@ -48,6 +49,7 @@ export enum BottomPanel {
 
 export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   api,
+  viewPortRef,
   sidePanel,
   onSidePanelChange,
   bottomPanel,
@@ -65,6 +67,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [endTime, setEndTime] = useState(1);
   const [currentTick, setCurrentTick] = useState(0);
+  const layoutChangeRef = useRef(false);
 
   useEffect(() => {
     api.isLooping = isLooping;
@@ -87,10 +90,43 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
       api.settings.player.scrollMode = alphaTab.ScrollMode.Smooth;
     } else {
       api.settings.player.scrollMode = alphaTab.ScrollMode.Continuous;
+      // Reset scroll position when switching to vertical layout
+      layoutChangeRef.current = true;
+      // Immediately reset scroll positions
+      if (viewPortRef?.current) {
+        viewPortRef.current.scrollLeft = 0;
+      }
+      if (api.container) {
+        api.container.scrollLeft = 0;
+      }
+      // Also reset after a short delay to ensure DOM has updated
+      setTimeout(() => {
+        if (viewPortRef?.current) {
+          viewPortRef.current.scrollLeft = 0;
+        }
+        if (api.container) {
+          api.container.scrollLeft = 0;
+        }
+        window.scrollTo(0, window.scrollY);
+      }, 100);
     }
     api.updateSettings();
     api.render();
   }, [api, layout]);
+
+  useAlphaTabEvent(api, "renderFinished", () => {
+    console.log("finished render");
+    if (layoutChangeRef.current) {
+      // Reset scroll position for both the alphaTab container and the viewport
+      api.container.scrollLeft = 0;
+      if (viewPortRef?.current) {
+        viewPortRef.current.scrollLeft = 0;
+      }
+      // Also try scrolling the window if needed
+      window.scrollTo(0, window.scrollY);
+      layoutChangeRef.current = false;
+    }
+  });
 
   useAlphaTabEvent(api, "soundFontLoad", (e) => {
     setSoundFontLoadPercentage(e.loaded / e.total);
