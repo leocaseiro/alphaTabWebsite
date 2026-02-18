@@ -1,6 +1,6 @@
 import * as alphaTab from "@coderline/alphatab";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
@@ -58,9 +58,33 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
 }) => {
   const [soundFontLoadPercentage, setSoundFontLoadPercentage] = useState(0);
   const [isPlaying, setPlaying] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
+  const [layout, setLayout] = useState(alphaTab.LayoutMode.Horizontal);
+  const [countInVolume, setCountInVolume] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [endTime, setEndTime] = useState(1);
   const [currentTick, setCurrentTick] = useState(0);
+
+  useEffect(() => {
+    api.isLooping = isLooping;
+    api.updateSettings();
+  }, [api, isLooping]);
+
+  useEffect(() => {
+    api.countInVolume = countInVolume;
+    api.updateSettings();
+  }, [api, countInVolume]);
+
+  useEffect(() => {
+    api.settings.display.layoutMode = layout;
+    if (layout === alphaTab.LayoutMode.Horizontal) {
+      api.settings.player.scrollMode = alphaTab.ScrollMode.Smooth;
+    } else {
+      api.settings.player.scrollMode = alphaTab.ScrollMode.Continuous;
+    }
+    api.updateSettings();
+    api.render();
+  }, [api, layout]);
 
   useAlphaTabEvent(api, "soundFontLoad", (e) => {
     setSoundFontLoadPercentage(e.loaded / e.total);
@@ -154,15 +178,57 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              onClearMarkers();
+              setIsLooping(!isLooping);
             }}
-            data-tooltip-id="tooltip-playground"
-            data-tooltip-content="Clear All Markers"
+            data-tooltip-id="tooltip-looping"
+            data-tooltip-content={`${isLooping ? "Disable" : "Enable"} looping`}
           >
-            <FontAwesomeIcon icon={solid.faEraser} />
+            <FontAwesomeIcon
+              className={!isLooping ? styles["fa-disabled"] : ""}
+              icon={solid.faRepeat}
+            />
           </button>
 
           <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setCountInVolume(countInVolume === 1 ? 0 : 1);
+            }}
+            data-tooltip-id="tooltip-count-in-volume"
+            data-tooltip-content={`${countInVolume === 1 ? "Disable" : "Enable"} count in`}
+          >
+            <FontAwesomeIcon
+              className={countInVolume === 0 ? styles["fa-disabled"] : ""}
+              icon={solid.faClock}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setLayout(
+                layout === alphaTab.LayoutMode.Horizontal
+                  ? alphaTab.LayoutMode.Page
+                  : alphaTab.LayoutMode.Horizontal,
+              );
+            }}
+            data-tooltip-id="tooltip-count-in-volume"
+            data-tooltip-content={`Set layout to ${layout === alphaTab.LayoutMode.Horizontal ? "vertical" : "horizontal"}`}
+          >
+            <FontAwesomeIcon
+              icon={
+                solid[
+                  layout === alphaTab.LayoutMode.Horizontal
+                    ? "faEllipsis"
+                    : "faEllipsisVertical"
+                ]
+              }
+            />
+          </button>
+
+          {/* <button
             type="button"
             disabled={!isPlaying}
             onClick={(e) => {
@@ -195,26 +261,13 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             data-tooltip-content="Add Cross (Rhythm Game)"
           >
             <FontAwesomeIcon icon={solid.faX} />
-          </button>
+          </button> */}
 
-          <button
+          {/* <button
             type="button"
             disabled={!isPlaying}
             onClick={(e) => {
               e.preventDefault();
-
-              // EXAMPLE 1: Test with all notes correct
-              // Uncomment this to mark all notes as successful (testing)
-              /*
-              const success = addSuccessMarkersForAllNotes(
-                api,
-                currentTick,
-                onAddCircleMarker,
-              );
-              if (success) {
-                console.log("✓ All notes marked as successful (test mode)");
-              }
-              */
 
               // EXAMPLE 2: Simulate player input (for rhythm game)
               // Replace this with actual player input from MIDI/keyboard
@@ -248,7 +301,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             data-tooltip-content="Add Circle (Success)"
           >
             <FontAwesomeIcon icon={solid.faCircle} />
-          </button>
+          </button> */}
 
           <PlayerProgressIndicator percentage={soundFontLoadPercentage} />
 

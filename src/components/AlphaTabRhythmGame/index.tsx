@@ -98,13 +98,6 @@ export const AlphaTabRhythmGame: React.FC = () => {
     s.player.playTripletFeel = false; // disable Play Swing
   });
 
-  useEffect(() => {
-    if (api) {
-      // api.countInVolume = 0;
-      api.countInVolume = 1;
-    }
-  }, [api]);
-
   useAlphaTabEvent(api, "renderFinished", () => {
     setLoading(false);
   });
