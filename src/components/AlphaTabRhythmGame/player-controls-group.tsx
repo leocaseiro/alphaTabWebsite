@@ -59,6 +59,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   const [soundFontLoadPercentage, setSoundFontLoadPercentage] = useState(0);
   const [isPlaying, setPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [isMetronome, setIsMetronome] = useState(0);
   const [layout, setLayout] = useState(alphaTab.LayoutMode.Horizontal);
   const [countInVolume, setCountInVolume] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -74,6 +75,11 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
     api.countInVolume = countInVolume;
     api.updateSettings();
   }, [api, countInVolume]);
+
+  useEffect(() => {
+    api.metronomeVolume = isMetronome;
+    api.updateSettings();
+  }, [api, isMetronome]);
 
   useEffect(() => {
     api.settings.display.layoutMode = layout;
@@ -195,12 +201,27 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
               e.preventDefault();
               setCountInVolume(countInVolume === 1 ? 0 : 1);
             }}
-            data-tooltip-id="tooltip-count-in-volume"
+            data-tooltip-id="tooltip-count-in"
             data-tooltip-content={`${countInVolume === 1 ? "Disable" : "Enable"} count in`}
           >
             <FontAwesomeIcon
               className={countInVolume === 0 ? styles["fa-disabled"] : ""}
-              icon={solid.faClock}
+              icon={solid.faStopwatch}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setIsMetronome(isMetronome === 1 ? 0 : 1);
+            }}
+            data-tooltip-id="tooltip-metronome"
+            data-tooltip-content={`${isMetronome === 1 ? "Disable" : "Enable"} metronome`}
+          >
+            <FontAwesomeIcon
+              className={isMetronome === 0 ? styles["fa-disabled"] : ""}
+              icon={solid.faTachometer}
             />
           </button>
 
