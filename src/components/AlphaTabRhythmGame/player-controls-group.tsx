@@ -39,7 +39,8 @@ export interface PlayerControlsGroupProps {
 export enum SidePanel {
   None = 0,
   Settings = 1,
-  TrackSelector = 2,
+  Practice = 2,
+  TrackSelector = 3,
 }
 
 export enum BottomPanel {
@@ -409,6 +410,22 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             }
           >
             <FontAwesomeIcon icon={solid.faListCheck} /> Tracks
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (sidePanel === SidePanel.Practice) {
+                onSidePanelChange(SidePanel.None);
+              } else {
+                onSidePanelChange(SidePanel.Practice);
+              }
+            }}
+            className={sidePanel === SidePanel.Practice ? styles.active : ""}
+            data-tooltip-id="tooltip-playground"
+            data-tooltip-content="Practice Mode Settings"
+          >
+            <FontAwesomeIcon icon={solid.faHeadphones} /> Practice
           </button>
           <button
             type="button"

@@ -691,3 +691,106 @@
 .fa-disabled {
   opacity: 0.5;
 }
+
+/* Practice Mode Settings */
+.at-practice-settings {
+  .at-settings-header {
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #00000033;
+
+    h3 {
+      margin: 0 0 0.3rem 0;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.85rem;
+      opacity: 0.7;
+    }
+  }
+}
+
+[data-theme="dark"] .at-practice-settings {
+  .at-settings-header {
+    border-bottom: 2px solid #ffffff33;
+  }
+}
+
+/* BPM Speed Control */
+.bpm-speed-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.bpm-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bpm-display-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.bpm-dual-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.bpm-percentage {
+  font-size: 1.1rem;
+  color: var(--ifm-color-primary);
+}
+
+.bpm-separator {
+  opacity: 0.4;
+  font-weight: bold;
+}
+
+.bpm-tempo {
+  font-size: 1rem;
+  opacity: 0.85;
+}
+
+.bpm-warning {
+  color: #ff9800;
+  font-size: 0.8rem;
+  cursor: help;
+}
+
+.bpm-range-info {
+  text-align: center;
+  opacity: 0.6;
+  font-size: 0.7rem;
+}
+
+.bpm-slider-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bpm-marker-100 {
+  position: absolute;
+  left: 50%; /* 100% is at 50% of the range (1% to 200%) */
+  top: 60%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 100%;
+  background: var(--ifm-color-primary);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 1;
+}

@@ -6,12 +6,19 @@ This document detailed the features in the MIDI rhythm game.
 
 ## Must Implement
 
-- test MusicXML
+- [x] test MusicXML
 - rename to alphatabhero
 - add beta
 - deploy to GH Pages
-- add buttons for bpm, loop, count in, metronome
-- add buttons for UI, page/horizontal, scale, stretch
+- [x] add buttons for
+  - [x] loop
+  - [x] count in,
+  - [x] metronome
+- [ ] add bpm button
+- add buttons for UI
+  - [x] page/horizontal
+  - [ ] scale
+  - [ ] stretch
 - volume control (backing track, metronome, guide notes)
 - display streak, and score on UI
 - map midi simple, advanced (double kick, edge, bow, bell, etc)
@@ -67,8 +74,7 @@ This document detailed the features in the MIDI rhythm game.
 - iOS app (webmidi https://github.com/mizuhiki/WebMIDIAPIShimForiOS)
 - errors analyse (tooltip why missed, error, and display on hover)
 - auto detect needs practice mode (if too many errors, suggest practice in slower tempo)
-- colorblind feedback (will circle and cross be enough, or maybe we need to instead remove correct notes, like instaDrum)
-- post on social media. Old posts from reddit, youtube, etc, asking for alternatives to:
+- colorblind feedback (will circle and cross be enough, or maybe we need to instead remove correct notes, like instaDrum) -\[ \] post on social media. Old posts from reddit, youtube, etc, asking for alternatives to:
   - Melodics
   - InstaDrum
   - Beatlii (aka freedrum)

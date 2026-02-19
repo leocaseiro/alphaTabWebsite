@@ -13,6 +13,7 @@ import {
   SidePanel,
 } from "./player-controls-group";
 import { PlaygroundSettings } from "./playground-settings";
+import { PracticeModeSettings } from "./practice-mode-settings";
 import { Tooltip } from "react-tooltip";
 import { PlaygroundTrackSelector } from "./track-selector";
 import { MediaSyncEditor } from "./media-sync-editor";
@@ -321,6 +322,14 @@ export const AlphaTabRhythmGame: React.FC = () => {
             api={api}
             onClose={() => setSidePanel(SidePanel.None)}
             isOpen={sidePanel === SidePanel.Settings}
+          />
+        )}
+
+        {api && api?.score && (
+          <PracticeModeSettings
+            api={api}
+            onClose={() => setSidePanel(SidePanel.None)}
+            isOpen={sidePanel === SidePanel.Practice}
           />
         )}
 
