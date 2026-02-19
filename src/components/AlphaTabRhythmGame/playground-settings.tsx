@@ -10,6 +10,7 @@ import Chrome from "@uiw/react-color-chrome";
 import { useDebounce } from "@uidotdev/usehooks";
 import { rgbaToHexa } from "@uiw/react-color";
 import { downloadFile } from "@site/src/utils";
+import { settingsSyncEmitter } from "./settings-sync";
 
 type SettingsContextProps = {
   api: alphaTab.AlphaTabApi;
@@ -84,6 +85,7 @@ function updateSettings(
     api.render();
   }
   context.onSettingsUpdated();
+  settingsSyncEmitter.notify("playground-settings");
   options?.afterUpdate?.(context);
 }
 
@@ -123,6 +125,7 @@ const factory = {
       setValue(context: SettingsContextProps, value) {
         context.api[setting] = value;
         context.onSettingsUpdated();
+        settingsSyncEmitter.notify("playground-settings");
       },
     };
   },
@@ -763,6 +766,24 @@ const EnumDropDown: React.FC<EnumDropDownSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "playground-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   const enumValues: { value: number; label: string }[] = [];
   for (const value of Object.values(enumType)) {
     if (typeof value === "string") {
@@ -775,11 +796,13 @@ const EnumDropDown: React.FC<EnumDropDownSchema & ControlProps> = ({
     <div className={styles.select}>
       <select
         id={inputId}
+        value={displayValue}
         onChange={(e) => {
+          const newValue = Number.parseInt(e.target.value);
+          setDisplayValue(newValue);
           console.log("enum change", e.target.value);
-          setValue(settings, Number.parseInt(e.target.value));
+          setValue(settings, newValue);
         }}
-        defaultValue={getValue(settings)}
       >
         {enumValues.map((v) => (
           <option key={v.value} value={v.value}>
@@ -800,13 +823,31 @@ const NumberRange: React.FC<NumberRangeSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
-  const value = getValue(settings);
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "playground-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          // Only update if the value changed (and we're not currently editing)
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   return (
     <div
       className={styles.slider}
       data-tooltip-id="tooltip-playground"
       data-tooltip-place="left"
-      data-tooltip-content={value}
+      data-tooltip-content={String(displayValue)}
     >
       <input
         type="range"
@@ -814,10 +855,16 @@ const NumberRange: React.FC<NumberRangeSchema & ControlProps> = ({
         min={min}
         max={max}
         step={step}
-        defaultValue={value}
-        onInput={(e) =>
-          setValue(settings, (e.target as HTMLInputElement).valueAsNumber)
-        }
+        value={displayValue}
+        onChange={(e) => {
+          const newValue = (e.target as HTMLInputElement).valueAsNumber;
+          setDisplayValue(newValue);
+          setValue(settings, newValue);
+        }}
+        onInput={(e) => {
+          const newValue = (e.target as HTMLInputElement).valueAsNumber;
+          setDisplayValue(newValue);
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -836,6 +883,24 @@ const NumberInput: React.FC<NumberInputSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "playground-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   return (
     <input
       type="number"
@@ -843,10 +908,16 @@ const NumberInput: React.FC<NumberInputSchema & ControlProps> = ({
       min={min}
       max={max}
       step={step}
-      defaultValue={getValue(settings)}
-      onInput={(e) =>
-        setValue(settings, (e.target as HTMLInputElement).valueAsNumber)
-      }
+      value={displayValue}
+      onChange={(e) => {
+        const newValue = (e.target as HTMLInputElement).valueAsNumber;
+        setDisplayValue(newValue);
+        setValue(settings, newValue);
+      }}
+      onInput={(e) => {
+        const newValue = (e.target as HTMLInputElement).valueAsNumber;
+        setDisplayValue(newValue);
+      }}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -963,16 +1034,36 @@ const BooleanToggle: React.FC<BooleanToggleSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "playground-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   return (
     <>
       <label className={styles.toggle}>
         <input
           id={inputId}
           type="checkbox"
-          checked={getValue(settings)}
+          checked={displayValue}
           onChange={(e) => {
+            const newValue = (e.target as HTMLInputElement).checked;
+            setDisplayValue(newValue);
             console.log("toggle");
-            setValue(settings, (e.target as HTMLInputElement).checked);
+            setValue(settings, newValue);
           }}
         />
         <span />

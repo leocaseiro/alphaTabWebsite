@@ -12,6 +12,7 @@ import {
   addSuccessMarkersForAllNotes,
   addSuccessMarkersForMatchedNotes,
 } from "./circle-marker-helpers";
+import { settingsSyncEmitter } from "./settings-sync";
 
 export interface PlayerControlsGroupProps {
   sidePanel: SidePanel;
@@ -61,28 +62,45 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
 }) => {
   const [soundFontLoadPercentage, setSoundFontLoadPercentage] = useState(0);
   const [isPlaying, setPlaying] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [isMetronome, setIsMetronome] = useState(0);
-  const [layout, setLayout] = useState(alphaTab.LayoutMode.Horizontal);
-  const [countInVolume, setCountInVolume] = useState(0);
+  const [isLooping, setIsLooping] = useState(api.isLooping);
+  const [isMetronome, setIsMetronome] = useState(api.metronomeVolume);
+  const [layout, setLayout] = useState(api.settings.display.layoutMode);
+  const [countInVolume, setCountInVolume] = useState(api.countInVolume);
   const [currentTime, setCurrentTime] = useState(0);
   const [endTime, setEndTime] = useState(1);
   const [currentTick, setCurrentTick] = useState(0);
   const layoutChangeRef = useRef(false);
 
+  // Listen for settings changes from the UI (but not from PlayerControls changes)
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "playerControls") {
+        setCountInVolume(api.countInVolume);
+        setIsMetronome(api.metronomeVolume);
+        setLayout(api.settings.display.layoutMode);
+        setIsLooping(api.isLooping);
+      }
+    });
+
+    return unsubscribe;
+  }, [api]);
+
   useEffect(() => {
     api.isLooping = isLooping;
     api.updateSettings();
+    settingsSyncEmitter.notify("playerControls");
   }, [api, isLooping]);
 
   useEffect(() => {
     api.countInVolume = countInVolume;
     api.updateSettings();
+    settingsSyncEmitter.notify("playerControls");
   }, [api, countInVolume]);
 
   useEffect(() => {
     api.metronomeVolume = isMetronome;
     api.updateSettings();
+    settingsSyncEmitter.notify("playerControls");
   }, [api, isMetronome]);
 
   useEffect(() => {
@@ -113,6 +131,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
     }
     api.updateSettings();
     api.render();
+    settingsSyncEmitter.notify("playerControls");
   }, [api, layout]);
 
   useAlphaTabEvent(api, "renderFinished", () => {

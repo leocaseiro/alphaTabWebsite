@@ -10,6 +10,7 @@ import Chrome from "@uiw/react-color-chrome";
 import { useDebounce } from "@uidotdev/usehooks";
 import { rgbaToHexa } from "@uiw/react-color";
 import { BpmSpeedControl } from "./bpm-speed-control";
+import { settingsSyncEmitter } from "./settings-sync";
 
 type SettingsContextProps = {
   api: alphaTab.AlphaTabApi;
@@ -82,6 +83,7 @@ function updateSettings(
     api.render();
   }
   context.onSettingsUpdated();
+  settingsSyncEmitter.notify("practice-mode-settings");
   options?.afterUpdate?.(context);
 }
 
@@ -121,6 +123,7 @@ const factory = {
       setValue(context: SettingsContextProps, value) {
         context.api[setting] = value;
         context.onSettingsUpdated();
+        settingsSyncEmitter.notify("practice-mode-settings");
       },
     };
   },
@@ -253,6 +256,24 @@ const EnumDropDown: React.FC<EnumDropDownSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "practice-mode-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   const enumValues: { value: number; label: string }[] = [];
   for (const value of Object.values(enumType)) {
     if (typeof value === "string") {
@@ -265,10 +286,12 @@ const EnumDropDown: React.FC<EnumDropDownSchema & ControlProps> = ({
     <div className={styles.select}>
       <select
         id={inputId}
+        value={displayValue}
         onChange={(e) => {
-          setValue(settings, Number.parseInt(e.target.value));
+          const newValue = Number.parseInt(e.target.value);
+          setDisplayValue(newValue);
+          setValue(settings, newValue);
         }}
-        defaultValue={getValue(settings)}
       >
         {enumValues.map((v) => (
           <option key={v.value} value={v.value}>
@@ -289,13 +312,30 @@ const NumberRange: React.FC<NumberRangeSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
-  const value = getValue(settings);
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "practice-mode-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   return (
     <div
       className={styles.slider}
       data-tooltip-id="tooltip-playground"
       data-tooltip-place="left"
-      data-tooltip-content={value}
+      data-tooltip-content={String(displayValue)}
     >
       <input
         type="range"
@@ -303,10 +343,16 @@ const NumberRange: React.FC<NumberRangeSchema & ControlProps> = ({
         min={min}
         max={max}
         step={step}
-        defaultValue={value}
-        onInput={(e) =>
-          setValue(settings, (e.target as HTMLInputElement).valueAsNumber)
-        }
+        value={displayValue}
+        onChange={(e) => {
+          const newValue = (e.target as HTMLInputElement).valueAsNumber;
+          setDisplayValue(newValue);
+          setValue(settings, newValue);
+        }}
+        onInput={(e) => {
+          const newValue = (e.target as HTMLInputElement).valueAsNumber;
+          setDisplayValue(newValue);
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -322,15 +368,35 @@ const BooleanToggle: React.FC<BooleanToggleSchema & ControlProps> = ({
   setValue,
 }) => {
   const settings = useContext(SettingsContext)!;
+  const [displayValue, setDisplayValue] = useState(() => getValue(settings));
+
+  useEffect(() => {
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      if (source !== "practice-mode-settings") {
+        const currentValue = getValue(settings);
+        setDisplayValue((prev) => {
+          if (prev !== currentValue) {
+            return currentValue;
+          }
+          return prev;
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [getValue, settings]);
+
   return (
     <>
       <label className={styles.toggle}>
         <input
           id={inputId}
           type="checkbox"
-          checked={getValue(settings)}
+          checked={displayValue}
           onChange={(e) => {
-            setValue(settings, (e.target as HTMLInputElement).checked);
+            const newValue = (e.target as HTMLInputElement).checked;
+            setDisplayValue(newValue);
+            setValue(settings, newValue);
           }}
         />
         <span />
