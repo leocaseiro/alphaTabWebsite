@@ -29,6 +29,8 @@ export const BpmRangeControlPanel: React.FC<BpmRangeControlPanelProps> = ({
     Math.round((api.score?.tempo ?? BPM_DEFAULT_ORIGINAL) * api.playbackSpeed),
   );
 
+  const percentageDisplay = Math.round(api.playbackSpeed * 100);
+
   const minBpm = Math.round(originalBpm * 0.01); // 1% of original
   const maxBpm = Math.round(originalBpm * 2.0); // 200% of original
 
@@ -119,7 +121,7 @@ export const BpmRangeControlPanel: React.FC<BpmRangeControlPanelProps> = ({
           </button>
 
           <div className={styles["bpm-panel-value"]}>
-            <strong>{currentBpm}</strong> BPM
+            <strong>{currentBpm}</strong> BPM ({percentageDisplay}%)
           </div>
         </div>
       </div>
