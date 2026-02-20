@@ -8,6 +8,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
 import { BpmSpeedControl } from "./bpm-speed-control";
 import { useAlphaTabEvent } from "@site/src/hooks";
+import { settingsSyncEmitter } from "./settings-sync";
 
 export interface BpmRangeControlPanelProps {
   api: alphaTab.AlphaTabApi;
@@ -38,16 +39,26 @@ export const BpmRangeControlPanel: React.FC<BpmRangeControlPanelProps> = ({
     setCurrentBpm(Math.round(newOriginalBpm * api.playbackSpeed));
   });
 
-  // Update local state when API playbackSpeed changes externally
+  // Listen for settings changes from other components (practice-mode-settings, playground-settings, etc.)
   useEffect(() => {
-    setCurrentBpm(Math.round(originalBpm * api.playbackSpeed));
-  }, [api.playbackSpeed, originalBpm]);
+    const unsubscribe = settingsSyncEmitter.subscribe((source) => {
+      // Update BPM when settings change from other sources
+      if (source !== "bpm-control-panel") {
+        const newBpm = Math.round(originalBpm * api.playbackSpeed);
+        setCurrentBpm(newBpm);
+      }
+    });
+
+    return unsubscribe;
+  }, [api, originalBpm]);
 
   const handleBpmChange = (newBpm: number) => {
     const clampedBpm = Math.max(minBpm, Math.min(maxBpm, newBpm));
     setCurrentBpm(clampedBpm);
     const newSpeed = clampedBpm / originalBpm;
     onSpeedChange(newSpeed);
+    // Notify other components about the change
+    settingsSyncEmitter.notify("bpm-control-panel");
   };
 
   const decreaseBpm = () => {

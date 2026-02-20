@@ -336,6 +336,32 @@ const config: Config = {
         return {};
       },
       configureWebpack(config, isServer, options) {
+        // Suppress ResizeObserver errors in dev mode
+        if (!isServer) {
+          config.devServer = {
+            ...config.devServer,
+            client: {
+              ...config.devServer?.client,
+              overlay: {
+                ...config.devServer?.client?.overlay,
+                errors: true,
+                warnings: false,
+                runtimeErrors: (error) => {
+                  // Suppress ResizeObserver errors as they don't block functionality
+                  if (
+                    error?.message?.includes(
+                      "ResizeObserver loop completed with undelivered notifications",
+                    )
+                  ) {
+                    return false;
+                  }
+                  return true;
+                },
+              },
+            },
+          };
+        }
+
         const matchRule = (r: RuleSetRule) => {
           if (typeof r === "object") {
             if (r.test instanceof RegExp) {

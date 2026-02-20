@@ -40,6 +40,37 @@ export const AlphaTabRhythmGame: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState(0);
 
+  // Suppress ResizeObserver errors in development mode
+  // These errors don't block functionality but can be noisy during development
+  useEffect(() => {
+    const originalError = console.error;
+    const handleError = (message: string | Error, ...args: unknown[]) => {
+      if (
+        typeof message === "string" &&
+        message.includes(
+          "ResizeObserver loop completed with undelivered notifications",
+        )
+      ) {
+        return; // Suppress this specific error
+      }
+      if (
+        message instanceof Error &&
+        message.message?.includes(
+          "ResizeObserver loop completed with undelivered notifications",
+        )
+      ) {
+        return; // Suppress this specific error
+      }
+      originalError(message, ...args);
+    };
+
+    console.error = handleError;
+
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
+
   // Memoize marker callbacks for MIDI game to avoid recreating on every render
   const handleAddCircleMarker = useCallback(
     (

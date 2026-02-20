@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
+import { settingsSyncEmitter } from "./settings-sync";
 
 export interface BpmSpeedControlProps {
   api: alphaTab.AlphaTabApi;
@@ -56,10 +57,14 @@ export const BpmSpeedControl: React.FC<BpmSpeedControlProps> = ({
     onSpeedChange(newSpeed);
   };
 
-  // Update local state when API changes externally
+  // Listen for settings changes from other components
   useEffect(() => {
-    setPlaybackSpeed(api.playbackSpeed);
-  }, [api.playbackSpeed]);
+    const unsubscribe = settingsSyncEmitter.subscribe(() => {
+      setPlaybackSpeed(api.playbackSpeed);
+    });
+
+    return unsubscribe;
+  }, [api]);
 
   // Tooltip shows percentage
   const tooltipContent = `${currentBpm} BPM (${percentageDisplay}%)`;
