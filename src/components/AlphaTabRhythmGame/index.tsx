@@ -17,6 +17,7 @@ import { PracticeModeSettings } from "./practice-mode-settings";
 import { Tooltip } from "react-tooltip";
 import { PlaygroundTrackSelector } from "./track-selector";
 import { MediaSyncEditor } from "./media-sync-editor";
+import { BpmRangeControlPanel } from "./bpm-range-control";
 import {
   type HTMLMediaElementLike,
   MediaType,
@@ -380,6 +381,15 @@ export const AlphaTabRhythmGame: React.FC = () => {
               mediaType={mediaType}
               onMediaTypeChange={(t) => setMediaType(t)}
               youtubePlayer={youtubePlayer.current ?? undefined}
+            />
+          )}
+          {api && api?.score && bottomPanel === BottomPanel.BpmControl && (
+            <BpmRangeControlPanel
+              api={api}
+              onSpeedChange={(newSpeed) => {
+                api.playbackSpeed = newSpeed;
+                api.updateSettings();
+              }}
             />
           )}
           {api && (

@@ -415,6 +415,7 @@ const BpmSpeedControlWrapper: React.FC<
       api={settings.api}
       onSpeedChange={(speed) => setValue(settings, speed)}
       inputId={inputId}
+      showMarker={true}
     />
   );
 };

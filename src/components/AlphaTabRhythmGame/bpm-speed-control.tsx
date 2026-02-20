@@ -11,6 +11,7 @@ export interface BpmSpeedControlProps {
   api: alphaTab.AlphaTabApi;
   onSpeedChange: (speed: number) => void;
   inputId: string;
+  showMarker?: boolean;
 }
 
 const BPM_DEFAULT_ORIGINAL = 120; // Fallback if score BPM unavailable
@@ -23,6 +24,7 @@ export const BpmSpeedControl: React.FC<BpmSpeedControlProps> = ({
   api,
   onSpeedChange,
   inputId,
+  showMarker = false,
 }) => {
   const [playbackSpeed, setPlaybackSpeed] = useState(api.playbackSpeed);
 
@@ -69,8 +71,9 @@ export const BpmSpeedControl: React.FC<BpmSpeedControlProps> = ({
           <div
             className={styles.slider}
             data-tooltip-id="tooltip-playground"
-            data-tooltip-place="left"
+            data-tooltip-place="bottom"
             data-tooltip-content={tooltipContent}
+            data-tooltip-hidden={false}
           >
             <input
               type="range"
@@ -89,7 +92,12 @@ export const BpmSpeedControl: React.FC<BpmSpeedControlProps> = ({
               }}
             />
           </div>
-          <div className={styles["bpm-marker-100"]} title="100% Original BPM" />
+          {showMarker && (
+            <div
+              className={styles["bpm-marker-100"]}
+              title="100% Original BPM"
+            />
+          )}
         </div>
       </div>
     </div>

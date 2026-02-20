@@ -14,6 +14,8 @@ import {
 } from "./circle-marker-helpers";
 import { settingsSyncEmitter } from "./settings-sync";
 
+const BPM_DEFAULT = 120; // Fallback if score BPM unavailable
+
 export interface PlayerControlsGroupProps {
   sidePanel: SidePanel;
   onSidePanelChange: (sidePanel: SidePanel) => void;
@@ -47,6 +49,7 @@ export enum SidePanel {
 export enum BottomPanel {
   None = 0,
   MediaSyncEditor = 1,
+  BpmControl = 2,
 }
 
 export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
@@ -69,6 +72,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [endTime, setEndTime] = useState(1);
   const [currentTick, setCurrentTick] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(api.playbackSpeed);
   const layoutChangeRef = useRef(false);
 
   // Listen for settings changes from the UI (but not from PlayerControls changes)
@@ -102,6 +106,12 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
     api.updateSettings();
     settingsSyncEmitter.notify("playerControls");
   }, [api, isMetronome]);
+
+  useEffect(() => {
+    api.playbackSpeed = playbackSpeed;
+    api.updateSettings();
+    settingsSyncEmitter.notify("playerControls");
+  }, [api, playbackSpeed]);
 
   useEffect(() => {
     api.settings.display.layoutMode = layout;
@@ -264,6 +274,26 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
               className={countInVolume === 0 ? styles["fa-disabled"] : ""}
               icon={solid.faStopwatch}
             />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (bottomPanel === BottomPanel.BpmControl) {
+                onBottomPanelChange(BottomPanel.None);
+              } else {
+                onBottomPanelChange(BottomPanel.BpmControl);
+              }
+            }}
+            data-tooltip-id="tooltip-playground"
+            data-tooltip-content="BPM Control"
+            className={
+              bottomPanel === BottomPanel.BpmControl ? styles.active : ""
+            }
+          >
+            <FontAwesomeIcon icon={solid.faMusic} />{" "}
+            {Math.round((api.score?.tempo ?? BPM_DEFAULT) * api.playbackSpeed)} BPM
           </button>
 
           <button
