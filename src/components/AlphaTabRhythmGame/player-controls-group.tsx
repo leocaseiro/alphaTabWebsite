@@ -44,6 +44,7 @@ export enum SidePanel {
   Settings = 1,
   Practice = 2,
   TrackSelector = 3,
+  MidiMapping = 4,
 }
 
 export enum BottomPanel {
@@ -293,7 +294,8 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             }
           >
             <FontAwesomeIcon icon={solid.faMusic} />{" "}
-            {Math.round((api.score?.tempo ?? BPM_DEFAULT) * api.playbackSpeed)} BPM
+            {Math.round((api.score?.tempo ?? BPM_DEFAULT) * api.playbackSpeed)}{" "}
+            BPM
           </button>
 
           <button
@@ -475,6 +477,22 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             data-tooltip-content="Practice Mode Settings"
           >
             <FontAwesomeIcon icon={solid.faHeadphones} /> Practice
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (sidePanel === SidePanel.MidiMapping) {
+                onSidePanelChange(SidePanel.None);
+              } else {
+                onSidePanelChange(SidePanel.MidiMapping);
+              }
+            }}
+            className={sidePanel === SidePanel.MidiMapping ? styles.active : ""}
+            data-tooltip-id="tooltip-playground"
+            data-tooltip-content="MIDI Mapping Settings"
+          >
+            <FontAwesomeIcon icon={solid.faMusic} /> MIDI
           </button>
           <button
             type="button"

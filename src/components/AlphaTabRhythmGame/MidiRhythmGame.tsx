@@ -2,8 +2,13 @@ import React, { useCallback, useRef, useEffect } from "react";
 import * as alphaTab from "@coderline/alphatab";
 import { useMidiInput, MidiInputEvent } from "./useMidiInput";
 import { useRhythmGameScore, TIMING_WINDOWS } from "./useRhythmGameScore";
-import { addSuccessMarkersForMatchedNotes, getMidiNoteNumber, getWrongNotePosition } from "./circle-marker-helpers";
+import {
+  addSuccessMarkersForMatchedNotes,
+  getMidiNoteNumber,
+  getWrongNotePosition,
+} from "./circle-marker-helpers";
 import { calculateTimingFeedback } from "./rhythm-game-helpers";
+import { useMidiMapping } from "./midi-mapping-context";
 
 interface MidiRhythmGameProps {
   api: alphaTab.AlphaTabApi | null;
@@ -52,6 +57,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   onClearMarkers,
 }: MidiRhythmGameProps) {
   const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
+  const { getMapping } = useMidiMapping();
 
   // Use refs for values that change frequently to avoid recreating callbacks
   const apiRef = useRef(api);
@@ -60,6 +66,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const onAddCircleMarkerRef = useRef(onAddCircleMarker);
   const onAddCrossMarkerRef = useRef(onAddCrossMarker);
   const prevTickRef = useRef(currentTick);
+  const getMappingRef = useRef(getMapping);
 
   // Update refs when props change (no re-render of MIDI handler)
   useEffect(() => {
@@ -105,97 +112,133 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
     onAddCrossMarkerRef.current = onAddCrossMarker;
   }, [onAddCrossMarker]);
 
+  useEffect(() => {
+    getMappingRef.current = getMapping;
+  }, [getMapping]);
+
   // Stable MIDI handler with ZERO dependencies - critical for performance
-  const handleMidiMessage = useCallback((event: MidiInputEvent) => {
-    // Only process note-on events during playback
-    if (event.type !== "noteOn" || !isPlayingRef.current || !apiRef.current) {
-      return;
-    }
-
-    const api = apiRef.current;
-    const currentTick = currentTickRef.current;
-
-    if (process.env.NODE_ENV === "development") {
-      console.log("🎹 MIDI Input received:", {
-        note: event.midiNote,
-        velocity: event.velocity,
-        portName: event.portName,
-      });
-    }
-
-    // Calculate timing feedback
-    const feedback = calculateTimingFeedback(api, currentTick);
-
-    if (!feedback) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("❌ No beat found at current position");
+  const handleMidiMessage = useCallback(
+    (event: MidiInputEvent) => {
+      // console.log("midimessage", event);
+      // Only process note-on events during playback
+      if (event.type !== "noteOn") {
+        // if (event.type !== "noteOn" || !isPlayingRef.current || !apiRef.current) {
+        return;
       }
-      recordHit("error");
-      return;
-    }
 
-    // Check timing window - use absolute value for speed
-    const timingOffsetMs = Math.abs(feedback.timingOffset * 1000);
-
-    let timingResult: "perfect" | "good" | "missed";
-    if (timingOffsetMs <= TIMING_WINDOWS.PERFECT) {
-      timingResult = "perfect";
-    } else if (timingOffsetMs <= TIMING_WINDOWS.GOOD) {
-      timingResult = "good";
-    } else {
-      timingResult = "missed";
-    }
-
-    // Use the existing helper to match notes (circles only — crosses handled below)
-    const result = addSuccessMarkersForMatchedNotes(
-      api,
-      currentTick,
-      [{ midiNote: event.midiNote }],
-      onAddCircleMarkerRef.current,
-    );
-
-    // Check if the note was matched
-    if (result.matchedNotes.length > 0) {
-      // Correct note hit
-      recordHit(timingResult);
+      const api = apiRef.current;
+      const currentTick = currentTickRef.current;
 
       if (process.env.NODE_ENV === "development") {
-        console.log("✅ Correct hit!", {
-          timing: timingResult,
-          timingOffset: `${timingOffsetMs.toFixed(1)}ms`,
+        console.log("🎹 MIDI Input received:", {
           note: event.midiNote,
-          matched: result.matchedNotes.map((n) => ({
-            string: n.string,
-            fret: n.fret,
-            midiNote: getMidiNoteNumber(n),
-          })),
+          velocity: event.velocity,
+          portName: event.portName,
         });
       }
-    } else if (result.wrongInputs.length > 0) {
-      // Wrong note — add a cross marker for EACH wrong input.
-      // Resolve the correct staff line and beat bounds for the MIDI note hit.
-      const wrongPos = getWrongNotePosition(api, currentTick, event.midiNote);
 
-      result.wrongInputs.forEach(() => {
-        onAddCrossMarkerRef.current(
-          wrongPos?.beatBounds ?? feedback.beatBounds,
-          wrongPos?.staffLineIndex ?? 2,
-          wrongPos?.timingOffset ?? feedback.timingOffset,
-          wrongPos?.nextBeatBounds ?? feedback.nextBeatBounds,
-          undefined, // no specific note → cross won't be deduped
-          wrongPos?.startTick ?? feedback.startTick,
-        );
-      });
-      recordHit("error");
-      if (process.env.NODE_ENV === "development") {
-        console.log("❌ Wrong note!", {
-          inputNote: event.midiNote,
-          staffLineIndex: wrongPos?.staffLineIndex ?? 2,
-          expectedNotes: feedback.beat.notes.map((n) => getMidiNoteNumber(n)),
-        });
+      // Apply MIDI mapping: resolve mapped notes to target notes
+      const mapping = getMappingRef.current();
+      let notesToMatch: Array<{ midiNote: number }>;
+
+      if (mapping && mapping.entries.length > 0) {
+        // Find all target notes that this MIDI note maps to
+        const targetNotes = mapping.entries
+          .filter((entry) => entry.mappedNotes.includes(event.midiNote))
+          .map((entry) => entry.targetNote);
+
+        if (process.env.NODE_ENV === "development" && targetNotes.length > 0) {
+          console.log("🔀 MIDI Mapping applied:", {
+            inputNote: event.midiNote,
+            targetNotes,
+          });
+        }
+
+        // Use target notes if mapping found, otherwise fall back to original note
+        notesToMatch =
+          targetNotes.length > 0
+            ? targetNotes.map((n) => ({ midiNote: n }))
+            : [{ midiNote: event.midiNote }];
+      } else {
+        // No mapping configured, use original MIDI note
+        notesToMatch = [{ midiNote: event.midiNote }];
       }
-    }
-  }, [recordHit]); // Only recordHit dependency - stable function
+
+      // Calculate timing feedback
+      const feedback = calculateTimingFeedback(api, currentTick);
+
+      if (!feedback) {
+        if (process.env.NODE_ENV === "development") {
+          console.log("❌ No beat found at current position");
+        }
+        recordHit("error");
+        return;
+      }
+
+      // Check timing window - use absolute value for speed
+      const timingOffsetMs = Math.abs(feedback.timingOffset * 1000);
+
+      let timingResult: "perfect" | "good" | "missed";
+      if (timingOffsetMs <= TIMING_WINDOWS.PERFECT) {
+        timingResult = "perfect";
+      } else if (timingOffsetMs <= TIMING_WINDOWS.GOOD) {
+        timingResult = "good";
+      } else {
+        timingResult = "missed";
+      }
+
+      // Use the existing helper to match notes (circles only — crosses handled below)
+      const result = addSuccessMarkersForMatchedNotes(
+        api,
+        currentTick,
+        notesToMatch,
+        onAddCircleMarkerRef.current,
+      );
+
+      // Check if the note was matched
+      if (result.matchedNotes.length > 0) {
+        // Correct note hit
+        recordHit(timingResult);
+
+        if (process.env.NODE_ENV === "development") {
+          console.log("✅ Correct hit!", {
+            timing: timingResult,
+            timingOffset: `${timingOffsetMs.toFixed(1)}ms`,
+            note: event.midiNote,
+            matched: result.matchedNotes.map((n) => ({
+              string: n.string,
+              fret: n.fret,
+              midiNote: getMidiNoteNumber(n),
+            })),
+          });
+        }
+      } else if (result.wrongInputs.length > 0) {
+        // Wrong note — add a cross marker for EACH wrong input.
+        // Resolve the correct staff line and beat bounds for the MIDI note hit.
+        const wrongPos = getWrongNotePosition(api, currentTick, event.midiNote);
+
+        result.wrongInputs.forEach(() => {
+          onAddCrossMarkerRef.current(
+            wrongPos?.beatBounds ?? feedback.beatBounds,
+            wrongPos?.staffLineIndex ?? 2,
+            wrongPos?.timingOffset ?? feedback.timingOffset,
+            wrongPos?.nextBeatBounds ?? feedback.nextBeatBounds,
+            undefined, // no specific note → cross won't be deduped
+            wrongPos?.startTick ?? feedback.startTick,
+          );
+        });
+        recordHit("error");
+        if (process.env.NODE_ENV === "development") {
+          console.log("❌ Wrong note!", {
+            inputNote: event.midiNote,
+            staffLineIndex: wrongPos?.staffLineIndex ?? 2,
+            expectedNotes: feedback.beat.notes.map((n) => getMidiNoteNumber(n)),
+          });
+        }
+      }
+    },
+    [recordHit],
+  ); // Only recordHit dependency - stable function
 
   // Initialize MIDI input hook
   const { isSupported, isConnected, inputs, error } = useMidiInput(

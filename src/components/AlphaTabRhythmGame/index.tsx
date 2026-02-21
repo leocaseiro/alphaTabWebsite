@@ -14,6 +14,7 @@ import {
 } from "./player-controls-group";
 import { PlaygroundSettings } from "./playground-settings";
 import { PracticeModeSettings } from "./practice-mode-settings";
+import { MidiMappingSettings } from "./midi-mapping-settings";
 import { Tooltip } from "react-tooltip";
 import { PlaygroundTrackSelector } from "./track-selector";
 import { MediaSyncEditor } from "./media-sync-editor";
@@ -26,8 +27,9 @@ import {
 import { YouTubePlayer } from "./youtube-player";
 import { CrossMarkersManager, useCrossMarkers } from "./cross-markers";
 import { MidiRhythmGame } from "./MidiRhythmGame";
+import { MidiMappingProvider } from "./midi-mapping-context";
 
-export const AlphaTabRhythmGame: React.FC = () => {
+const AlphaTabRhythmGameContent: React.FC = () => {
   const viewPortRef = React.createRef<HTMLDivElement>();
   const [isLoading, setLoading] = useState(true);
   const [sidePanel, setSidePanel] = useState(SidePanel.None);
@@ -366,6 +368,13 @@ export const AlphaTabRhythmGame: React.FC = () => {
         )}
 
         {api && api?.score && (
+          <MidiMappingSettings
+            isOpen={sidePanel === SidePanel.MidiMapping}
+            onClose={() => setSidePanel(SidePanel.None)}
+          />
+        )}
+
+        {api && api?.score && (
           <PlaygroundTrackSelector
             api={api}
             onClose={() => setSidePanel(SidePanel.None)}
@@ -472,5 +481,13 @@ export const AlphaTabRhythmGame: React.FC = () => {
         style={{ zIndex: 1200 }}
       />
     </>
+  );
+};
+
+export const AlphaTabRhythmGame: React.FC = () => {
+  return (
+    <MidiMappingProvider>
+      <AlphaTabRhythmGameContent />
+    </MidiMappingProvider>
   );
 };

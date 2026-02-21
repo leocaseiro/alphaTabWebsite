@@ -21,6 +21,7 @@ This document detailed the features in the MIDI rhythm game.
   - [ ] stretch
 - volume control (backing track, metronome, guide notes)
 - display streak, and score on UI
+- **MIDI MAPPING FEATURE (NEW)** - Map multiple MIDI inputs to single notation
 - map midi simple, advanced (double kick, edge, bow, bell, etc)
 - auto bpm (reset score on each loop), Select minimal score, select bpm to increase by, number of attempts,
 - map auto
