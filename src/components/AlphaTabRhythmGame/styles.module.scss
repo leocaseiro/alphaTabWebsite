@@ -1337,6 +1337,89 @@
       color: #388e3c;
     }
   }
+
+  .ignore-description {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin: 0.2rem 0;
+  }
+
+  .ignored-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0.4rem 0;
+    background: rgba(0, 0, 0, 0.02);
+    padding: 0.3rem;
+    border-radius: 2px;
+    min-height: 1.5rem;
+  }
+
+  .ignored-note-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(76, 175, 80, 0.15);
+    border-left: 2px solid #4caf50;
+    padding: 0.2rem 0.3rem;
+    border-radius: 2px;
+    font-size: 0.85rem;
+
+    span {
+      flex: 1;
+      font-weight: 500;
+      color: #388e3c;
+    }
+
+    .remove-ignored-note {
+      background: none;
+      border: none;
+      color: #388e3c;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+
+      &:hover {
+        opacity: 1;
+      }
+
+      i {
+        font-size: 0.7rem;
+      }
+    }
+  }
+
+  .no-ignored {
+    margin: 0;
+    font-size: 0.8rem;
+    opacity: 0.6;
+    font-style: italic;
+    padding: 0.2rem;
+  }
+
+  .ignore-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: block;
+    margin-top: 0.3rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .skipped-note-badge {
+    background: rgba(33, 150, 243, 0.15);
+    border-left: 2px solid #2196f3;
+
+    span {
+      color: #1565c0;
+    }
+
+    .remove-ignored-note {
+      color: #1565c0;
+    }
+  }
 }
 
 [data-theme="dark"] .at-midi-mapping-settings {
@@ -1393,6 +1476,18 @@
   select {
     background-color: #2a2a2b;
     color: #fff;
+  }
+
+  .skipped-note-badge {
+    background: rgba(33, 150, 243, 0.2);
+
+    span {
+      color: #90caf9;
+    }
+
+    .remove-ignored-note {
+      color: #90caf9;
+    }
   }
 }
 

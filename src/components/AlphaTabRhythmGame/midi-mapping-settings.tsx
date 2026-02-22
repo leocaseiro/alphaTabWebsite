@@ -47,6 +47,13 @@ export const MidiMappingSettings: React.FC<MidiMappingSettingsProps> = ({
     saveCustomPreset,
     deleteCustomPreset,
     getCustomPresets,
+    getIgnoredMidiNotes,
+    setIgnoredMidiNotes,
+    addIgnoredMidiNote,
+    removeIgnoredMidiNote,
+    getSkippedNotationNotes,
+    addSkippedNotationNote,
+    removeSkippedNotationNote,
   } = useMidiMapping();
 
   // State management
@@ -60,6 +67,12 @@ export const MidiMappingSettings: React.FC<MidiMappingSettingsProps> = ({
   const [manualMidiInput, setManualMidiInput] = useState<string>("");
   const [customPresets, setCustomPresets] = useState(getCustomPresets());
   const [presetName, setPresetName] = useState<string>("");
+  const [ignoredMidiNotes, setIgnoredMidiNotesState] = useState(
+    getIgnoredMidiNotes(),
+  );
+  const [skippedNotationNotes, setSkippedNotationNotesState] = useState(
+    getSkippedNotationNotes(),
+  );
   const customPresetsRef = useRef(customPresets);
 
   // Update custom presets ref when they change
@@ -551,6 +564,151 @@ export const MidiMappingSettings: React.FC<MidiMappingSettingsProps> = ({
             </p>
           )}
         </div>
+      </div>
+
+      {/* Ignore Errors */}
+      <div className={styles["at-settings-group"]}>
+        <h4>Ignore Errors</h4>
+        <p className={styles["ignore-description"]}>
+          Select MIDI inputs to ignore errors from (e.g., accidental pedal hits
+          won't mark as wrong)
+        </p>
+
+        <div className={styles["ignored-notes-list"]}>
+          {ignoredMidiNotes.length > 0 ? (
+            ignoredMidiNotes.map((midiNote) => (
+              <div key={midiNote} className={styles["ignored-note-badge"]}>
+                <span>
+                  {midiNote} - {getMidiNoteName(midiNote)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeIgnoredMidiNote(midiNote);
+                    setIgnoredMidiNotesState(
+                      ignoredMidiNotes.filter((note) => note !== midiNote),
+                    );
+                  }}
+                  className={styles["remove-ignored-note"]}
+                  title={`Stop ignoring errors from MIDI ${midiNote}`}
+                >
+                  <FontAwesomeIcon icon={solid.faTimes} />
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className={styles["no-ignored"]}>No MIDI notes being ignored</p>
+          )}
+        </div>
+
+        <label htmlFor="ignore-midi-select" className={styles["ignore-label"]}>
+          Add MIDI note to ignore:
+        </label>
+        <select
+          id="ignore-midi-select"
+          onChange={(e) => {
+            const midiNote = parseInt(e.target.value, 10);
+            if (!Number.isNaN(midiNote)) {
+              addIgnoredMidiNote(midiNote);
+              setIgnoredMidiNotesState(
+                [...ignoredMidiNotes, midiNote].sort((a, b) => a - b),
+              );
+              e.target.value = "";
+            }
+          }}
+          defaultValue=""
+          className={styles.select}
+        >
+          <option value="">Select note to ignore...</option>
+          {Array.from({ length: 128 }, (_, i) => {
+            const name = getMidiNoteName(i);
+            const isAlreadyIgnored = ignoredMidiNotes.includes(i);
+            return (
+              <option key={i} value={i} disabled={isAlreadyIgnored}>
+                {i} - {name}
+                {isAlreadyIgnored ? " (already ignored)" : ""}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
+      {/* Skip Notation Notes (Practice Focus) */}
+      <div className={styles["at-settings-group"]}>
+        <h4>Skip Notation Notes</h4>
+        <p className={styles["ignore-description"]}>
+          Select notation notes to skip during practice. Hits on skipped notes
+          won't be scored and missing them won't count as an error — useful for
+          focusing on specific parts (e.g., hi-hat only).
+        </p>
+
+        <div className={styles["ignored-notes-list"]}>
+          {skippedNotationNotes.length > 0 ? (
+            skippedNotationNotes.map((midiNote) => (
+              <div
+                key={midiNote}
+                className={`${styles["ignored-note-badge"]} ${styles["skipped-note-badge"]}`}
+              >
+                <span>
+                  {midiNote} - {getMidiNoteName(midiNote)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeSkippedNotationNote(midiNote);
+                    setSkippedNotationNotesState(
+                      skippedNotationNotes.filter((note) => note !== midiNote),
+                    );
+                    settingsSyncEmitter.notify("midi-mapping-settings");
+                  }}
+                  className={styles["remove-ignored-note"]}
+                  title={`Stop skipping notation note ${midiNote}`}
+                >
+                  <FontAwesomeIcon icon={solid.faTimes} />
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className={styles["no-ignored"]}>
+              No notation notes being skipped
+            </p>
+          )}
+        </div>
+
+        <label
+          htmlFor="skip-notation-select"
+          className={styles["ignore-label"]}
+        >
+          Add notation note to skip:
+        </label>
+        <select
+          id="skip-notation-select"
+          onChange={(e) => {
+            const midiNote = parseInt(e.target.value, 10);
+            if (!Number.isNaN(midiNote)) {
+              addSkippedNotationNote(midiNote);
+              setSkippedNotationNotesState(
+                [...skippedNotationNotes, midiNote].sort((a, b) => a - b),
+              );
+              settingsSyncEmitter.notify("midi-mapping-settings");
+              e.target.value = "";
+            }
+          }}
+          defaultValue=""
+          className={styles.select}
+        >
+          <option value="">Select notation note to skip...</option>
+          {Array.from({ length: 128 }, (_, i) => {
+            const name = getMidiNoteName(i);
+            const isAlreadySkipped = skippedNotationNotes.includes(i);
+            return (
+              <option key={i} value={i} disabled={isAlreadySkipped}>
+                {i} - {name}
+                {isAlreadySkipped ? " (already skipped)" : ""}
+              </option>
+            );
+          })}
+        </select>
       </div>
     </div>
   );

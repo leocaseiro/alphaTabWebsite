@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 import { settingsSyncEmitter } from "./settings-sync";
 
 // ============================================================================
@@ -58,6 +64,14 @@ interface MidiMappingStorage {
   activeMapping: MidiMapping | null;
   /** User-created custom presets */
   customPresets: MidiMappingPreset[];
+  /** MIDI notes to ignore errors from (e.g., pedal hits) */
+  ignoredMidiNotes: number[];
+  /**
+   * Notation (target) notes to skip entirely from scoring.
+   * When a notation note is in this list, missing it is not penalised.
+   * Useful for practice focus (e.g., only practice hi-hat, skip kick drum expectations).
+   */
+  skippedNotationNotes: number[];
   /** Version for migration purposes */
   version: number;
 }
@@ -84,6 +98,24 @@ interface MidiMappingContextValue {
   getCustomPresets: () => MidiMappingPreset[];
   /** Load a preset as the active mapping */
   loadPreset: (preset: MidiMapping) => void;
+  /** Get all MIDI notes to ignore errors from */
+  getIgnoredMidiNotes: () => number[];
+  /** Set MIDI notes to ignore errors from */
+  setIgnoredMidiNotes: (midiNotes: number[]) => void;
+  /** Add a MIDI note to the ignore list */
+  addIgnoredMidiNote: (midiNote: number) => void;
+  /** Remove a MIDI note from the ignore list */
+  removeIgnoredMidiNote: (midiNote: number) => void;
+  /** Check if a MIDI note should have errors ignored */
+  isErrorIgnored: (midiNote: number) => boolean;
+  /** Get all notation (target) notes that are skipped from scoring */
+  getSkippedNotationNotes: () => number[];
+  /** Add a notation note to the skip list */
+  addSkippedNotationNote: (midiNote: number) => void;
+  /** Remove a notation note from the skip list */
+  removeSkippedNotationNote: (midiNote: number) => void;
+  /** Check if a notation note is skipped from scoring */
+  isNotationNoteSkipped: (midiNote: number) => boolean;
 }
 
 // ============================================================================
@@ -93,9 +125,14 @@ interface MidiMappingContextValue {
 const STORAGE_KEY = "alphaTab_midi_mapping";
 const CURRENT_VERSION = 1;
 
+// Default ignore list: 44 (Pedal Hi-Hat)
+const DEFAULT_IGNORED_MIDI_NOTES = [44];
+
 const defaultStorage: MidiMappingStorage = {
   activeMapping: null,
   customPresets: [],
+  ignoredMidiNotes: DEFAULT_IGNORED_MIDI_NOTES,
+  skippedNotationNotes: [],
   version: CURRENT_VERSION,
 };
 
@@ -127,8 +164,18 @@ function loadFromStorage(): MidiMappingStorage {
 
     // Version check for future migrations
     if (parsed.version !== CURRENT_VERSION) {
-      console.warn(`MIDI mapping storage version mismatch: ${parsed.version} vs ${CURRENT_VERSION}`);
+      console.warn(
+        `MIDI mapping storage version mismatch: ${parsed.version} vs ${CURRENT_VERSION}`,
+      );
       return defaultStorage;
+    }
+
+    // Backfill fields added after initial version
+    if (!Array.isArray(parsed.ignoredMidiNotes)) {
+      parsed.ignoredMidiNotes = DEFAULT_IGNORED_MIDI_NOTES;
+    }
+    if (!Array.isArray(parsed.skippedNotationNotes)) {
+      parsed.skippedNotationNotes = [];
     }
 
     return parsed;
@@ -174,13 +221,19 @@ function cloneMapping(mapping: MidiMapping | null): MidiMapping | null {
  * Ensures targetNote and mappedNotes are valid
  */
 function validateMappingEntry(entry: MidiMappingEntry): boolean {
-  if (!Number.isInteger(entry.targetNote) || entry.targetNote < 0 || entry.targetNote > 127) {
+  if (
+    !Number.isInteger(entry.targetNote) ||
+    entry.targetNote < 0 ||
+    entry.targetNote > 127
+  ) {
     return false;
   }
   if (!Array.isArray(entry.mappedNotes)) {
     return false;
   }
-  return entry.mappedNotes.every((note) => Number.isInteger(note) && note >= 0 && note <= 127);
+  return entry.mappedNotes.every(
+    (note) => Number.isInteger(note) && note >= 0 && note <= 127,
+  );
 }
 
 // ============================================================================
@@ -195,8 +248,12 @@ export interface MidiMappingProviderProps {
  * Provider component for MIDI mapping context
  * Manages state and persistence of MIDI mappings
  */
-export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({ children }) => {
-  const [storage, setStorage] = useState<MidiMappingStorage>(() => loadFromStorage());
+export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({
+  children,
+}) => {
+  const [storage, setStorage] = useState<MidiMappingStorage>(() =>
+    loadFromStorage(),
+  );
 
   // Handle external updates (cross-tab sync, other sources)
   const updateStorage = useCallback((newStorage: MidiMappingStorage) => {
@@ -270,7 +327,10 @@ export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({ childr
       }
 
       newMapping.updatedAt = Date.now();
-      const newStorage: MidiMappingStorage = { ...storage, activeMapping: newMapping };
+      const newStorage: MidiMappingStorage = {
+        ...storage,
+        activeMapping: newMapping,
+      };
       updateStorage(newStorage);
     },
 
@@ -285,7 +345,9 @@ export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({ childr
 
       // Remove entry if no MIDI notes left
       if (entry.mappedNotes.length === 0) {
-        newMapping.entries = newMapping.entries.filter((e) => e.targetNote !== targetNote);
+        newMapping.entries = newMapping.entries.filter(
+          (e) => e.targetNote !== targetNote,
+        );
       }
 
       // If no entries left, clear the mapping
@@ -295,7 +357,10 @@ export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({ childr
         newMapping.updatedAt = Date.now();
       }
 
-      const newStorage: MidiMappingStorage = { ...storage, activeMapping: newMapping };
+      const newStorage: MidiMappingStorage = {
+        ...storage,
+        activeMapping: newMapping,
+      };
       updateStorage(newStorage);
     },
 
@@ -312,7 +377,9 @@ export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({ childr
         return;
       }
 
-      const newPresets = storage.customPresets.filter((p) => p.id !== preset.id);
+      const newPresets = storage.customPresets.filter(
+        (p) => p.id !== preset.id,
+      );
       newPresets.push(preset);
 
       const newStorage: MidiMappingStorage = {
@@ -352,6 +419,83 @@ export const MidiMappingProvider: React.FC<MidiMappingProviderProps> = ({ childr
       };
 
       updateStorage(newStorage);
+    },
+
+    getIgnoredMidiNotes: () => [...storage.ignoredMidiNotes],
+
+    setIgnoredMidiNotes: (midiNotes: number[]) => {
+      const newStorage: MidiMappingStorage = {
+        ...storage,
+        ignoredMidiNotes: midiNotes.filter(
+          (note) => Number.isInteger(note) && note >= 0 && note <= 127,
+        ),
+      };
+      updateStorage(newStorage);
+    },
+
+    addIgnoredMidiNote: (midiNote: number) => {
+      if (!Number.isInteger(midiNote) || midiNote < 0 || midiNote > 127) {
+        console.error("Invalid MIDI note for ignore list");
+        return;
+      }
+
+      if (!storage.ignoredMidiNotes.includes(midiNote)) {
+        const newStorage: MidiMappingStorage = {
+          ...storage,
+          ignoredMidiNotes: [...storage.ignoredMidiNotes, midiNote].sort(
+            (a, b) => a - b,
+          ),
+        };
+        updateStorage(newStorage);
+      }
+    },
+
+    removeIgnoredMidiNote: (midiNote: number) => {
+      const newStorage: MidiMappingStorage = {
+        ...storage,
+        ignoredMidiNotes: storage.ignoredMidiNotes.filter(
+          (note) => note !== midiNote,
+        ),
+      };
+      updateStorage(newStorage);
+    },
+
+    isErrorIgnored: (midiNote: number) => {
+      return storage.ignoredMidiNotes.includes(midiNote);
+    },
+
+    getSkippedNotationNotes: () => [...storage.skippedNotationNotes],
+
+    addSkippedNotationNote: (midiNote: number) => {
+      if (!Number.isInteger(midiNote) || midiNote < 0 || midiNote > 127) {
+        console.error("Invalid MIDI note for skip list");
+        return;
+      }
+
+      if (!storage.skippedNotationNotes.includes(midiNote)) {
+        const newStorage: MidiMappingStorage = {
+          ...storage,
+          skippedNotationNotes: [
+            ...storage.skippedNotationNotes,
+            midiNote,
+          ].sort((a, b) => a - b),
+        };
+        updateStorage(newStorage);
+      }
+    },
+
+    removeSkippedNotationNote: (midiNote: number) => {
+      const newStorage: MidiMappingStorage = {
+        ...storage,
+        skippedNotationNotes: storage.skippedNotationNotes.filter(
+          (note) => note !== midiNote,
+        ),
+      };
+      updateStorage(newStorage);
+    },
+
+    isNotationNoteSkipped: (midiNote: number) => {
+      return storage.skippedNotationNotes.includes(midiNote);
     },
   };
 

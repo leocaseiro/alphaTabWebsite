@@ -57,7 +57,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   onClearMarkers,
 }: MidiRhythmGameProps) {
   const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
-  const { getMapping } = useMidiMapping();
+  const { getMapping, isErrorIgnored, isNotationNoteSkipped } =
+    useMidiMapping();
 
   // Use refs for values that change frequently to avoid recreating callbacks
   const apiRef = useRef(api);
@@ -67,6 +68,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const onAddCrossMarkerRef = useRef(onAddCrossMarker);
   const prevTickRef = useRef(currentTick);
   const getMappingRef = useRef(getMapping);
+  const isErrorIgnoredRef = useRef(isErrorIgnored);
+  const isNotationNoteSkippedRef = useRef(isNotationNoteSkipped);
 
   // Update refs when props change (no re-render of MIDI handler)
   useEffect(() => {
@@ -115,6 +118,14 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   useEffect(() => {
     getMappingRef.current = getMapping;
   }, [getMapping]);
+
+  useEffect(() => {
+    isErrorIgnoredRef.current = isErrorIgnored;
+  }, [isErrorIgnored]);
+
+  useEffect(() => {
+    isNotationNoteSkippedRef.current = isNotationNoteSkipped;
+  }, [isNotationNoteSkipped]);
 
   // Stable MIDI handler with ZERO dependencies - critical for performance
   const handleMidiMessage = useCallback(
@@ -213,27 +224,57 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           });
         }
       } else if (result.wrongInputs.length > 0) {
-        // Wrong note — add a cross marker for EACH wrong input.
-        // Resolve the correct staff line and beat bounds for the MIDI note hit.
-        const wrongPos = getWrongNotePosition(api, currentTick, event.midiNote);
+        // Check if errors should be ignored for this MIDI note (extra hit ignore)
+        const shouldIgnoreError = isErrorIgnoredRef.current(event.midiNote);
 
-        result.wrongInputs.forEach(() => {
-          onAddCrossMarkerRef.current(
-            wrongPos?.beatBounds ?? feedback.beatBounds,
-            wrongPos?.staffLineIndex ?? 2,
-            wrongPos?.timingOffset ?? feedback.timingOffset,
-            wrongPos?.nextBeatBounds ?? feedback.nextBeatBounds,
-            undefined, // no specific note → cross won't be deduped
-            wrongPos?.startTick ?? feedback.startTick,
+        // Check if ALL expected notes in this beat are in the skip list.
+        // If so, this beat is being practiced selectively and wrong inputs here
+        // should not be penalised (the player is focusing on other parts).
+        const allExpectedNotesSkipped =
+          feedback.beat.notes.length > 0 &&
+          feedback.beat.notes.every((n) =>
+            isNotationNoteSkippedRef.current(getMidiNoteNumber(n)),
           );
-        });
-        recordHit("error");
-        if (process.env.NODE_ENV === "development") {
-          console.log("❌ Wrong note!", {
-            inputNote: event.midiNote,
-            staffLineIndex: wrongPos?.staffLineIndex ?? 2,
-            expectedNotes: feedback.beat.notes.map((n) => getMidiNoteNumber(n)),
+
+        if (!shouldIgnoreError && !allExpectedNotesSkipped) {
+          // Wrong note — add a cross marker for EACH wrong input.
+          // Resolve the correct staff line and beat bounds for the MIDI note hit.
+          const wrongPos = getWrongNotePosition(
+            api,
+            currentTick,
+            event.midiNote,
+          );
+
+          result.wrongInputs.forEach(() => {
+            onAddCrossMarkerRef.current(
+              wrongPos?.beatBounds ?? feedback.beatBounds,
+              wrongPos?.staffLineIndex ?? 2,
+              wrongPos?.timingOffset ?? feedback.timingOffset,
+              wrongPos?.nextBeatBounds ?? feedback.nextBeatBounds,
+              undefined, // no specific note → cross won't be deduped
+              wrongPos?.startTick ?? feedback.startTick,
+            );
           });
+          recordHit("error");
+          if (process.env.NODE_ENV === "development") {
+            console.log("❌ Wrong note!", {
+              inputNote: event.midiNote,
+              staffLineIndex: wrongPos?.staffLineIndex ?? 2,
+              expectedNotes: feedback.beat.notes.map((n) =>
+                getMidiNoteNumber(n),
+              ),
+            });
+          }
+        } else {
+          // Error ignored: either extra-hit ignore or notation-skip practice mode
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              allExpectedNotesSkipped
+                ? "⏭️ Beat skipped (practice focus mode)"
+                : "⏸️ Error ignored for MIDI note",
+              { inputNote: event.midiNote },
+            );
+          }
         }
       }
     },
