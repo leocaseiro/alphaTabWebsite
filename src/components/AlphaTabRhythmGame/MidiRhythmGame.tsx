@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useEffect } from "react";
 import * as alphaTab from "@coderline/alphatab";
 import { useMidiInput, MidiInputEvent } from "./useMidiInput";
-import { useRhythmGameScore, TIMING_WINDOWS } from "./useRhythmGameScore";
+import { TIMING_WINDOWS, type HitResult, type RhythmGameScore } from "./useRhythmGameScore";
 import {
   addSuccessMarkersForMatchedNotes,
   getMidiNoteNumber,
@@ -31,6 +31,9 @@ interface MidiRhythmGameProps {
     startTick?: number,
   ) => void;
   onClearMarkers: () => void;
+  recordHit: (result: HitResult) => void;
+  resetScore: () => void;
+  getScore: () => RhythmGameScore;
 }
 
 /**
@@ -55,8 +58,10 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   onAddCircleMarker,
   onAddCrossMarker,
   onClearMarkers,
+  recordHit,
+  resetScore,
+  getScore,
 }: MidiRhythmGameProps) {
-  const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
   const { getMapping, isErrorIgnored, isNotationNoteSkipped } =
     useMidiMapping();
 

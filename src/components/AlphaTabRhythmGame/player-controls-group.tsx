@@ -51,6 +51,7 @@ export enum BottomPanel {
   None = 0,
   MediaSyncEditor = 1,
   BpmControl = 2,
+  RhythmGameScore = 3,
 }
 
 export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
@@ -287,7 +288,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
                 onBottomPanelChange(BottomPanel.BpmControl);
               }
             }}
-            data-tooltip-id="tooltip-playground"
+            data-tooltip-id="tooltip-bpm-control"
             data-tooltip-content="BPM Control"
             className={
               bottomPanel === BottomPanel.BpmControl ? styles.active : ""
@@ -337,89 +338,36 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             />
           </button>
 
-          {/* <button
+          <button
             type="button"
-            disabled={!isPlaying}
             onClick={(e) => {
               e.preventDefault();
-
-              // Rhythm game: Add marker with precise timing
-              const feedback = addTimingFeedbackMarker(
-                api,
-                currentTick,
-                -1, // Mark on 1st string
-                onAddCrossMarker,
-              );
-
-              if (feedback) {
-                console.log("Rhythm Game Feedback:", {
-                  timing: feedback.timing,
-                  timingOffset: feedback.timingOffset.toFixed(3),
-                  isOnBeat: feedback.isOnBeat,
-                  trackName: feedback.beat.voice.bar.staff.track.name,
-                  barIndex: feedback.beat.voice.bar.index,
-                  beatIndex: feedback.beat.index,
-                  notes: feedback.beat.notes.map((n) => ({
-                    string: n.string,
-                    fret: n.fret,
-                  })),
-                });
+              if (bottomPanel === BottomPanel.RhythmGameScore) {
+                onBottomPanelChange(BottomPanel.None);
+              } else {
+                onBottomPanelChange(BottomPanel.RhythmGameScore);
               }
             }}
-            data-tooltip-id="tooltip-playground"
-            data-tooltip-content="Add Cross (Rhythm Game)"
+            data-tooltip-id="tooltip-rhythm-game-score"
+            data-tooltip-content="Rhythm Game Score"
+            className={
+              bottomPanel === BottomPanel.RhythmGameScore ? styles.active : ""
+            }
           >
-            <FontAwesomeIcon icon={solid.faX} />
-          </button> */}
-
-          {/* <button
-            type="button"
-            disabled={!isPlaying}
-            onClick={(e) => {
-              e.preventDefault();
-
-              // EXAMPLE 2: Simulate player input (for rhythm game)
-              // Replace this with actual player input from MIDI/keyboard
-              const playerInputs = [
-                { midiNote: 42 }, // Player hit MIDI note 42 (closed hi-hat)
-                { midiNote: 38 }, // Player hit MIDI note 42 (closed hi-hat)
-              ];
-
-              const result = addSuccessMarkersForMatchedNotes(
-                api,
-                currentTick,
-                playerInputs,
-                onAddCircleMarker,
-                // No cross marker callback - circles only for correct hits
-              );
-
-              console.log("Rhythm Game Result:", {
-                matched: result.matchedNotes.map((n) => ({
-                  string: n.string,
-                  fret: n.fret,
-                })),
-                missed: result.missedNotes.map((n) => ({
-                  string: n.string,
-                  fret: n.fret,
-                })),
-                wrong: result.wrongInputs,
-                score: `${result.matchedNotes.length}/${result.matchedNotes.length + result.missedNotes.length}`,
-              });
-            }}
-            data-tooltip-id="tooltip-playground"
-            data-tooltip-content="Add Circle (Success)"
-          >
-            <FontAwesomeIcon icon={solid.faCircle} />
-          </button> */}
+            <FontAwesomeIcon icon={solid.faGamepad} /> Rhythm Game Score
+          </button>
 
           <PlayerProgressIndicator percentage={soundFontLoadPercentage} />
 
           {api.score && (
             <div className={styles["at-song-details"]}>
-              <span className={styles["at-song-title"]}>{api.score.title}</span>
+              {/* <span className={styles["at-song-title"]}>{api.score.title}</span> */}
+              <span className={styles["at-song-title"]}>Some Song here</span>
               <span> - </span>
               <span className={styles["at-song-artist"]}>
-                {api.score.artist}
+                {/* {api.score.artist} */}
+                {/* {api.score.artist} */}
+                Some Artist here
               </span>
             </div>
           )}

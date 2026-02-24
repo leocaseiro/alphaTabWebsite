@@ -28,6 +28,8 @@ import { YouTubePlayer } from "./youtube-player";
 import { CrossMarkersManager, useCrossMarkers } from "./cross-markers";
 import { MidiRhythmGame } from "./MidiRhythmGame";
 import { MidiMappingProvider } from "./midi-mapping-context";
+import { RhythmGameScorePanel } from "./rhythm-game-score-panel";
+import { useRhythmGameScore } from "./useRhythmGameScore";
 
 const AlphaTabRhythmGameContent: React.FC = () => {
   const viewPortRef = React.createRef<HTMLDivElement>();
@@ -39,6 +41,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
   });
   const youtubePlayer = useRef<HTMLMediaElementLike | null>(null);
   const { markers, addMarker, clearMarkers } = useCrossMarkers();
+  const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState(0);
 
@@ -411,6 +414,9 @@ const AlphaTabRhythmGameContent: React.FC = () => {
           onAddCircleMarker={handleAddCircleMarker}
           onAddCrossMarker={handleAddCrossMarker}
           onClearMarkers={clearMarkers}
+          recordHit={recordHit}
+          resetScore={resetScore}
+          getScore={getScore}
         />
 
         <div className={styles["at-footer"]}>
@@ -431,6 +437,9 @@ const AlphaTabRhythmGameContent: React.FC = () => {
                 api.updateSettings();
               }}
             />
+          )}
+          {api && api?.score && bottomPanel === BottomPanel.RhythmGameScore && (
+            <RhythmGameScorePanel getScore={getScore} />
           )}
           {api && (
             <PlayerControlsGroup
