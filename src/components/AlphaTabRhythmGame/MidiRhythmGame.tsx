@@ -54,6 +54,7 @@ interface MidiRhythmGameProps {
     nextBeatBounds?: alphaTab.rendering.BeatBounds,
     note?: alphaTab.model.Note,
     startTick?: number,
+    hitResult?: HitResult,
   ) => void;
   onAddCrossMarker: (
     beatBounds: alphaTab.rendering.BeatBounds,
@@ -342,6 +343,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
             lateNote.nextBeatBounds,
             lateNote.note,
             lateNote.startTick,
+            result,
           );
 
           if (process.env.NODE_ENV === "development") {
@@ -406,6 +408,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
               nextBeatBounds,
               note,
               beatStartTick,
+              result,
             );
           }
 
@@ -460,6 +463,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
               undefined,
               note,
               nextBeatStartTick,
+              result,
             );
           }
 

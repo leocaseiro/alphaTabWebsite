@@ -29,7 +29,7 @@ import { CrossMarkersManager, useCrossMarkers } from "./cross-markers";
 import { MidiRhythmGame } from "./MidiRhythmGame";
 import { MidiMappingProvider } from "./midi-mapping-context";
 import { RhythmGameScorePanel } from "./rhythm-game-score-panel";
-import { useRhythmGameScore } from "./useRhythmGameScore";
+import { useRhythmGameScore, type HitResult } from "./useRhythmGameScore";
 
 const AlphaTabRhythmGameContent: React.FC = () => {
   const viewPortRef = React.createRef<HTMLDivElement>();
@@ -86,6 +86,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
       nextBeatBounds?: alphaTab.rendering.BeatBounds,
       note?: alphaTab.model.Note,
       startTick?: number,
+      hitResult?: HitResult,
     ) => {
       addMarker(
         beatBounds,
@@ -95,6 +96,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
         "circle",
         note,
         startTick,
+        hitResult,
       );
     },
     [addMarker],

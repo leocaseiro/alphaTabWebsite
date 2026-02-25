@@ -2,6 +2,7 @@
 
 import * as alphaTab from "@coderline/alphatab";
 import { useEffect, useRef, useState, useCallback } from "react";
+import type { HitResult } from "./useRhythmGameScore";
 
 export interface CrossMarker {
   id: string;
@@ -12,6 +13,7 @@ export interface CrossMarker {
   nextBeatBounds?: alphaTab.rendering.BeatBounds; // Optional: for interpolating position between beats
   note?: alphaTab.model.Note; // Optional: specific note to highlight (for circles)
   beatId?: string; // Unique identifier for the beat (bar index + beat index)
+  hitResult?: HitResult; // Timing classification for circle color
 }
 
 export interface CrossMarkersManagerProps {
@@ -370,7 +372,13 @@ function drawCircleMarker(
     markerGroup.setAttribute("data-beat-id", marker.beatId);
   }
 
-  // Create the circle
+  const circleColor =
+    marker.hitResult === "earlyGood"
+      ? "orange"
+      : marker.hitResult === "lateGood"
+        ? "purple"
+        : "green";
+
   const circle = document.createElementNS(
     "http://www.w3.org/2000/svg",
     "circle",
@@ -378,7 +386,7 @@ function drawCircleMarker(
   circle.setAttribute("cx", x.toString());
   circle.setAttribute("cy", y.toString());
   circle.setAttribute("r", circleRadius.toString());
-  circle.setAttribute("stroke", "green");
+  circle.setAttribute("stroke", circleColor);
   circle.setAttribute("stroke-width", (3 * scale).toString());
   circle.setAttribute("fill", "none");
 
@@ -447,6 +455,7 @@ export function useCrossMarkers() {
       type: "cross" | "circle" = "cross",
       note?: alphaTab.model.Note,
       startTick?: number,
+      hitResult?: HitResult,
     ) => {
       const beatId = generateBeatId(beatBounds, staffLineIndex, note, startTick);
 
@@ -476,6 +485,7 @@ export function useCrossMarkers() {
         nextBeatBounds,
         note,
         beatId,
+        hitResult,
       };
       setMarkers((prev) => [...prev, newMarker]);
     },

@@ -13,6 +13,14 @@ interface RhythmGameScorePanelProps {
 
 const POLL_INTERVAL_MS = 200;
 
+function getAccuracyTier(accuracy: number): string {
+  if (accuracy >= 99) return "excellent";
+  if (accuracy >= 81) return "great";
+  if (accuracy >= 71) return "good";
+  if (accuracy >= 31) return "fair";
+  return "poor";
+}
+
 export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
   getScore,
 }) => {
@@ -26,6 +34,8 @@ export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
   }, [getScore]);
 
   const hits = score.perfect + score.earlyGood + score.lateGood;
+  const hasPlayed = score.totalNotes > 0 || score.errors > 0;
+  const tier = hasPlayed ? getAccuracyTier(score.accuracy) : undefined;
 
   return (
     <div className={styles["score-panel"]}>
@@ -42,15 +52,15 @@ export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
       <div className={styles["score-panel-main"]}>
         <div className={styles["score-panel-stat"]}>
           <span className={styles["score-panel-label"]}>Score</span>
-          <span className={styles["score-panel-value"]}>{score.perfect * 100 + score.earlyGood * 50 + score.lateGood * 50}</span>
+          <span className={styles["score-panel-value"]} data-tier={tier}>{score.perfect * 100 + score.earlyGood * 50 + score.lateGood * 50}</span>
         </div>
         <div className={styles["score-panel-stat"]}>
           <span className={styles["score-panel-label"]}>Accuracy</span>
-          <span className={styles["score-panel-value"]}>{score.accuracy}%</span>
+          <span className={styles["score-panel-value"]} data-tier={tier}>{score.accuracy}%</span>
         </div>
         <div className={styles["score-panel-stat"]}>
           <span className={styles["score-panel-label"]}>Streak</span>
-          <span className={styles["score-panel-value"]}>{score.streak}</span>
+          <span className={styles["score-panel-value"]} data-tier={tier}>{score.streak}</span>
         </div>
         <div className={styles["score-panel-stat"]}>
           <span className={styles["score-panel-label"]}>Max Streak</span>
