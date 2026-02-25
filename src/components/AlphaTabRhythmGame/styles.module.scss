@@ -985,6 +985,112 @@
   }
 }
 
+.score-panel {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: inherit;
+  background: #fff;
+
+  &-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--ifm-color-primary);
+    color: #fff;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+
+    &-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    &-notes {
+      font-size: 0.75rem;
+      opacity: 0.85;
+    }
+  }
+
+  &-main {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  &-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 8px;
+
+    & + & {
+      border-left: 1px solid #e0e0e0;
+    }
+  }
+
+  &-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: #666;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  &-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2da44e;
+  }
+
+  &-details {
+    display: flex;
+    padding: 8px 0;
+  }
+
+  &-detail {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+
+    &-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: #888;
+      letter-spacing: 0.3px;
+    }
+
+    &-value {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+
+      &[data-type="perfect"] {
+        color: #2da44e;
+      }
+      &[data-type="good"] {
+        color: #57ab5a;
+      }
+      &[data-type="early"] {
+        color: #d4a72c;
+      }
+      &[data-type="late"] {
+        color: #e09b13;
+      }
+      &[data-type="miss"] {
+        color: #cf222e;
+      }
+      &[data-type="error"] {
+        color: #cf222e;
+      }
+    }
+  }
+}
+
 /* MIDI Mapping Settings */
 .at-midi-mapping-settings {
   .at-settings-header {

@@ -354,7 +354,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
               bottomPanel === BottomPanel.RhythmGameScore ? styles.active : ""
             }
           >
-            <FontAwesomeIcon icon={solid.faGamepad} /> Rhythm Game Score
+            <FontAwesomeIcon icon={solid.faGamepad} />
           </button>
 
           <PlayerProgressIndicator percentage={soundFontLoadPercentage} />

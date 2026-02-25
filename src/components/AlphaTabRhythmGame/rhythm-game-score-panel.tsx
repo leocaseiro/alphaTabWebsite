@@ -25,25 +25,63 @@ export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
     return () => clearInterval(id);
   }, [getScore]);
 
-  return (
-    <div className={styles["rhythm-game-score-panel"]}>
-      <div className={styles["rhythm-game-score-panel-content"]}>
-        <div className={styles["rhythm-game-score-panel-label"]}>
-          <FontAwesomeIcon icon={solid.faMusic} />
-          <span>Rhythm Game Score</span>
-        </div>
+  const hits = score.perfect + score.earlyGood + score.lateGood;
 
-        <div className={styles["rhythm-game-score-panel-value"]}>
-          <strong>{score.accuracy}%</strong> Accuracy
-          <strong>{score.perfect}</strong> Perfect
-          <strong>{score.good}</strong> Good
-          (<strong>{score.earlyGood}</strong> Early
-          / <strong>{score.lateGood}</strong> Late)
-          <strong>{score.missed}</strong> Missed
-          <strong>{score.errors}</strong> Errors
-          <strong>{score.streak}</strong> Streak
-          <strong>{score.maxStreak}</strong> Max Streak
-          <strong>{score.totalNotes}</strong> Total Notes
+  return (
+    <div className={styles["score-panel"]}>
+      <div className={styles["score-panel-header"]}>
+        <span className={styles["score-panel-header-title"]}>
+          <FontAwesomeIcon icon={solid.faMusic} />
+          Score Mode
+        </span>
+        <span className={styles["score-panel-header-notes"]}>
+          {hits} / {score.totalNotes}
+        </span>
+      </div>
+
+      <div className={styles["score-panel-main"]}>
+        <div className={styles["score-panel-stat"]}>
+          <span className={styles["score-panel-label"]}>Score</span>
+          <span className={styles["score-panel-value"]}>{score.perfect * 100 + score.earlyGood * 50 + score.lateGood * 50}</span>
+        </div>
+        <div className={styles["score-panel-stat"]}>
+          <span className={styles["score-panel-label"]}>Accuracy</span>
+          <span className={styles["score-panel-value"]}>{score.accuracy}%</span>
+        </div>
+        <div className={styles["score-panel-stat"]}>
+          <span className={styles["score-panel-label"]}>Streak</span>
+          <span className={styles["score-panel-value"]}>{score.streak}</span>
+        </div>
+        <div className={styles["score-panel-stat"]}>
+          <span className={styles["score-panel-label"]}>Max Streak</span>
+          <span className={styles["score-panel-value"]}>{score.maxStreak}</span>
+        </div>
+      </div>
+
+      <div className={styles["score-panel-details"]}>
+        <div className={styles["score-panel-detail"]}>
+          <span className={styles["score-panel-detail-label"]}>Perfect</span>
+          <span className={styles["score-panel-detail-value"]} data-type="perfect">{score.perfect}</span>
+        </div>
+        <div className={styles["score-panel-detail"]}>
+          <span className={styles["score-panel-detail-label"]}>Good</span>
+          <span className={styles["score-panel-detail-value"]} data-type="good">{score.good}</span>
+        </div>
+        <div className={styles["score-panel-detail"]}>
+          <span className={styles["score-panel-detail-label"]}>Early</span>
+          <span className={styles["score-panel-detail-value"]} data-type="early">{score.earlyGood}</span>
+        </div>
+        <div className={styles["score-panel-detail"]}>
+          <span className={styles["score-panel-detail-label"]}>Late</span>
+          <span className={styles["score-panel-detail-value"]} data-type="late">{score.lateGood}</span>
+        </div>
+        <div className={styles["score-panel-detail"]}>
+          <span className={styles["score-panel-detail-label"]}>Miss</span>
+          <span className={styles["score-panel-detail-value"]} data-type="miss">{score.missed}</span>
+        </div>
+        <div className={styles["score-panel-detail"]}>
+          <span className={styles["score-panel-detail-label"]}>Errors</span>
+          <span className={styles["score-panel-detail-value"]} data-type="error">{score.errors}</span>
         </div>
       </div>
     </div>
