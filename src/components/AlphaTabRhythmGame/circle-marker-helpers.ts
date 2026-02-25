@@ -31,7 +31,7 @@ export function getMidiNoteNumber(note: alphaTab.model.Note): number {
  * This is needed for percussion where note.string is -1 (not a guitar string).
  * Reverses the formula: y = staffTopY + staffLineIndex * lineSpacing + lineSpacing / 2
  */
-function getStaffLineIndex(
+export function getStaffLineIndex(
   note: alphaTab.model.Note,
   beatBounds: alphaTab.rendering.BeatBounds,
   scale: number,

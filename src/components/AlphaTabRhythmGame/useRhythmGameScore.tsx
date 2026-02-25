@@ -14,7 +14,9 @@ export const TIMING_WINDOWS = {
  */
 export interface RhythmGameScore {
   perfect: number;
-  good: number;
+  earlyGood: number;
+  lateGood: number;
+  good: number; // computed: earlyGood + lateGood
   missed: number;
   errors: number;
   streak: number;
@@ -26,7 +28,7 @@ export interface RhythmGameScore {
 /**
  * Hit result for a single note
  */
-export type HitResult = "perfect" | "good" | "missed" | "error";
+export type HitResult = "perfect" | "earlyGood" | "lateGood" | "missed" | "error";
 
 /**
  * Hook return type
@@ -56,6 +58,8 @@ export function useRhythmGameScore(): UseRhythmGameScoreReturn {
   // This provides zero-latency score updates
   const scoreRef = useRef<RhythmGameScore>({
     perfect: 0,
+    earlyGood: 0,
+    lateGood: 0,
     good: 0,
     missed: 0,
     errors: 0,
@@ -75,31 +79,36 @@ export function useRhythmGameScore(): UseRhythmGameScoreReturn {
         score.totalNotes += 1;
         break;
 
-      case "good":
-        score.good += 1;
+      case "earlyGood":
+        score.earlyGood += 1;
+        score.streak += 1;
+        score.totalNotes += 1;
+        break;
+
+      case "lateGood":
+        score.lateGood += 1;
         score.streak += 1;
         score.totalNotes += 1;
         break;
 
       case "missed":
         score.missed += 1;
-        score.streak = 0; // Break streak on miss
+        score.streak = 0;
         score.totalNotes += 1;
         break;
 
       case "error":
         score.errors += 1;
-        score.streak = 0; // Break streak on error
+        score.streak = 0;
         break;
     }
 
-    // Update max streak
+    score.good = score.earlyGood + score.lateGood;
+
     if (score.streak > score.maxStreak) {
       score.maxStreak = score.streak;
     }
 
-    // Calculate accuracy: (hits / total attempts) * 100
-    // Total attempts = totalNotes + errors
     const totalHits = score.perfect + score.good;
     const totalAttempts = score.totalNotes + score.errors;
 
@@ -110,6 +119,8 @@ export function useRhythmGameScore(): UseRhythmGameScoreReturn {
   const resetScore = useCallback(() => {
     scoreRef.current = {
       perfect: 0,
+      earlyGood: 0,
+      lateGood: 0,
       good: 0,
       missed: 0,
       errors: 0,

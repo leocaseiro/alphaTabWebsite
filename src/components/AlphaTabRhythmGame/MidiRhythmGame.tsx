@@ -1,19 +1,52 @@
 import React, { useCallback, useRef, useEffect } from "react";
 import * as alphaTab from "@coderline/alphatab";
 import { useMidiInput, MidiInputEvent } from "./useMidiInput";
-import { TIMING_WINDOWS, type HitResult, type RhythmGameScore } from "./useRhythmGameScore";
 import {
-  addSuccessMarkersForMatchedNotes,
+  TIMING_WINDOWS,
+  type HitResult,
+  type RhythmGameScore,
+} from "./useRhythmGameScore";
+import {
   getMidiNoteNumber,
+  getStaffLineIndex,
   getWrongNotePosition,
 } from "./circle-marker-helpers";
-import { calculateTimingFeedback } from "./rhythm-game-helpers";
 import { useMidiMapping } from "./midi-mapping-context";
+
+const ALPHATAB_PPQ = 960;
+
+/**
+ * Info stored for a note that has passed its expected time but may still
+ * be hit within the GOOD timing window (sightread "lateNotes" concept).
+ */
+interface LateNoteInfo {
+  note: alphaTab.model.Note;
+  midiNote: number;
+  beatBounds: alphaTab.rendering.BeatBounds;
+  nextBeatBounds?: alphaTab.rendering.BeatBounds;
+  startTick: number;
+  bpm: number;
+  trackIndex: number;
+  hitKey: string;
+}
+
+/**
+ * Convert a tick difference to wall-clock milliseconds, using the local
+ * BPM and the current playback speed.
+ */
+function tickDiffToWallMs(
+  tickDiff: number,
+  bpm: number,
+  playbackSpeed: number,
+): number {
+  return ((tickDiff / ALPHATAB_PPQ) * (60000 / bpm)) / playbackSpeed;
+}
 
 interface MidiRhythmGameProps {
   api: alphaTab.AlphaTabApi | null;
   isPlaying: boolean;
   currentTick: number;
+  currentTimeMs: number;
   onAddCircleMarker: (
     beatBounds: alphaTab.rendering.BeatBounds,
     staffLineIndex: number,
@@ -37,24 +70,26 @@ interface MidiRhythmGameProps {
 }
 
 /**
- * MIDI Rhythm Game Integration
- * PERFORMANCE OPTIMIZED for minimal latency
+ * MIDI Rhythm Game — sightread-style two-direction scoring algorithm.
  *
- * Listens to MIDI inputs and processes them for rhythm game scoring
- * - Detects timing accuracy (Perfect: ±50ms, Good: ±300ms)
- * - Adds visual markers (circles for hits, crosses for misses)
- * - Tracks score statistics
+ * When a MIDI input arrives:
+ *   1. Check late notes (past beats, still within GOOD window)
+ *   2. Check current beat notes (on-time or slightly late)
+ *   3. Check next beat notes (early hit)
+ *   4. No match -> error
  *
- * Performance optimizations:
- * - Uses refs for frequently changing values (currentTick, isPlaying)
- * - Stable MIDI callback with no dependency changes
- * - Minimal console logging (dev only)
- * - No state updates in hot path
+ * Timing classification:
+ *   - Perfect:    within ±50 ms of the note
+ *   - Late Good:  50–300 ms after the note
+ *   - Early Good: 50–300 ms before the note
+ *   - Missed:     note expired (>300 ms with no input)
+ *   - Error:      wrong note / no matching note
  */
 export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   api,
   isPlaying,
   currentTick,
+  currentTimeMs,
   onAddCircleMarker,
   onAddCrossMarker,
   onClearMarkers,
@@ -65,10 +100,10 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const { getMapping, isErrorIgnored, isNotationNoteSkipped } =
     useMidiMapping();
 
-  // Use refs for values that change frequently to avoid recreating callbacks
   const apiRef = useRef(api);
   const isPlayingRef = useRef(isPlaying);
   const currentTickRef = useRef(currentTick);
+  const currentTimeMsRef = useRef(currentTimeMs);
   const onAddCircleMarkerRef = useRef(onAddCircleMarker);
   const onAddCrossMarkerRef = useRef(onAddCrossMarker);
   const prevTickRef = useRef(currentTick);
@@ -76,226 +111,453 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const isErrorIgnoredRef = useRef(isErrorIgnored);
   const isNotationNoteSkippedRef = useRef(isNotationNoteSkipped);
 
-  // Update refs when props change (no re-render of MIDI handler)
+  const hitNotesRef = useRef<Set<string>>(new Set());
+  const lateNotesRef = useRef<Map<number, LateNoteInfo>>(new Map());
+  const lastBeatTickPerTrackRef = useRef<Map<number, number>>(new Map());
+
   useEffect(() => {
     apiRef.current = api;
   }, [api]);
-
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+  useEffect(() => {
+    currentTickRef.current = currentTick;
+  }, [currentTick]);
+  useEffect(() => {
+    currentTimeMsRef.current = currentTimeMs;
+  }, [currentTimeMs]);
+  useEffect(() => {
+    onAddCircleMarkerRef.current = onAddCircleMarker;
+  }, [onAddCircleMarker]);
+  useEffect(() => {
+    onAddCrossMarkerRef.current = onAddCrossMarker;
+  }, [onAddCrossMarker]);
+  useEffect(() => {
+    getMappingRef.current = getMapping;
+  }, [getMapping]);
+  useEffect(() => {
+    isErrorIgnoredRef.current = isErrorIgnored;
+  }, [isErrorIgnored]);
+  useEffect(() => {
+    isNotationNoteSkippedRef.current = isNotationNoteSkipped;
+  }, [isNotationNoteSkipped]);
 
-  // Detect loop reset: tick jumps backward while isLooping is enabled
+  // Loop detection: tick jumps backward while looping
   useEffect(() => {
     const prevTick = prevTickRef.current;
     prevTickRef.current = currentTick;
 
-    // A significant backward tick jump during playback + looping = loop reset
-    // Threshold of 960 ticks (one quarter note) avoids false positives from jitter
     if (
       isPlaying &&
       apiRef.current?.isLooping &&
       currentTick < prevTick - 960
     ) {
       if (process.env.NODE_ENV === "development") {
-        console.log("🔄 Loop detected — clearing markers, keeping score", {
+        console.log("Loop detected — clearing markers, keeping score", {
           prevTick,
           currentTick,
           score: getScore(),
         });
       }
       onClearMarkers();
+      hitNotesRef.current.clear();
+      lateNotesRef.current.clear();
+      lastBeatTickPerTrackRef.current.clear();
     }
   }, [currentTick, isPlaying, onClearMarkers, getScore]);
 
-  useEffect(() => {
-    currentTickRef.current = currentTick;
-  }, [currentTick]);
+  /**
+   * Remove late notes that have exceeded GOOD_RANGE — they are truly missed.
+   */
+  const clearExpiredLateNotes = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
 
-  useEffect(() => {
-    onAddCircleMarkerRef.current = onAddCircleMarker;
-  }, [onAddCircleMarker]);
+    const tick = currentTickRef.current;
+    const playbackSpeed = api.playbackSpeed;
+    const toRemove: number[] = [];
 
-  useEffect(() => {
-    onAddCrossMarkerRef.current = onAddCrossMarker;
-  }, [onAddCrossMarker]);
+    for (const [midiNote, info] of lateNotesRef.current) {
+      const diffTicks = tick - info.startTick;
+      const diffMs = tickDiffToWallMs(diffTicks, info.bpm, playbackSpeed);
 
-  useEffect(() => {
-    getMappingRef.current = getMapping;
-  }, [getMapping]);
+      if (diffMs > TIMING_WINDOWS.GOOD) {
+        toRemove.push(midiNote);
+        recordHit("missed");
+      }
+    }
 
-  useEffect(() => {
-    isErrorIgnoredRef.current = isErrorIgnored;
-  }, [isErrorIgnored]);
+    for (const key of toRemove) {
+      lateNotesRef.current.delete(key);
+    }
+  }, [recordHit]);
 
+  // Beat-change detection: when playback passes a beat boundary, move
+  // unhit notes from the old beat into lateNotes instead of immediately
+  // marking them as missed.
   useEffect(() => {
-    isNotationNoteSkippedRef.current = isNotationNoteSkipped;
-  }, [isNotationNoteSkipped]);
+    if (!isPlaying || !api?.tickCache || !api?.boundsLookup) return;
 
-  // Stable MIDI handler with ZERO dependencies - critical for performance
-  const handleMidiMessage = useCallback(
-    (event: MidiInputEvent) => {
-      // console.log("midimessage", event);
-      // Only process note-on events during playback
-      if (event.type !== "noteOn") {
-        // if (event.type !== "noteOn" || !isPlayingRef.current || !apiRef.current) {
-        return;
+    const tracks = api.tracks;
+    if (!tracks || tracks.length === 0) return;
+
+    for (const track of tracks) {
+      const beatResult = api.tickCache.findBeat(
+        new Set([track.index]),
+        currentTick,
+      );
+      if (!beatResult) continue;
+
+      const currentBeatStart = beatResult.start;
+      const lastBeatTick = lastBeatTickPerTrackRef.current.get(track.index);
+      lastBeatTickPerTrackRef.current.set(track.index, currentBeatStart);
+
+      if (lastBeatTick === undefined || lastBeatTick === currentBeatStart)
+        continue;
+
+      // Beat changed — look up the old beat
+      const oldBeatResult = api.tickCache.findBeat(
+        new Set([track.index]),
+        lastBeatTick,
+      );
+      if (!oldBeatResult) continue;
+
+      const oldBeatBounds = api.boundsLookup.findBeat(oldBeatResult.beat);
+      if (!oldBeatBounds) continue;
+
+      let nextBeatBounds: alphaTab.rendering.BeatBounds | undefined;
+      if (oldBeatResult.nextBeat) {
+        nextBeatBounds =
+          api.boundsLookup.findBeat(oldBeatResult.nextBeat.beat) ?? undefined;
       }
 
+      for (const note of oldBeatResult.beat.notes) {
+        const midiNote = getMidiNoteNumber(note);
+        if (isNotationNoteSkippedRef.current(midiNote)) continue;
+
+        const hitKey = `${track.index}:${oldBeatResult.start}:${midiNote}`;
+        if (hitNotesRef.current.has(hitKey)) continue;
+
+        // If an older late note for this MIDI note exists, it's now missed
+        const existing = lateNotesRef.current.get(midiNote);
+        if (existing) {
+          recordHit("missed");
+        }
+
+        lateNotesRef.current.set(midiNote, {
+          note,
+          midiNote,
+          beatBounds: oldBeatBounds,
+          nextBeatBounds,
+          startTick: oldBeatResult.start,
+          bpm: api.score?.tempo ?? 120,
+          trackIndex: track.index,
+          hitKey,
+        });
+      }
+    }
+
+    clearExpiredLateNotes();
+  }, [currentTick, isPlaying, api, recordHit, clearExpiredLateNotes]);
+
+  // --- MIDI handler (sightread two-direction algorithm) ---
+  const handleMidiMessage = useCallback(
+    (event: MidiInputEvent) => {
+      if (event.type !== "noteOn") return;
+
       const api = apiRef.current;
-      const currentTick = currentTickRef.current;
+      const tick = currentTickRef.current;
 
       if (process.env.NODE_ENV === "development") {
-        console.log("🎹 MIDI Input received:", {
+        console.log("MIDI Input:", {
           note: event.midiNote,
           velocity: event.velocity,
           portName: event.portName,
         });
       }
 
-      // Apply MIDI mapping: resolve mapped notes to target notes
+      // Resolve MIDI mapping
       const mapping = getMappingRef.current();
-      let notesToMatch: Array<{ midiNote: number }>;
+      let targetMidiNotes: number[];
 
       if (mapping && mapping.entries.length > 0) {
-        // Find all target notes that this MIDI note maps to
-        const targetNotes = mapping.entries
+        const mapped = mapping.entries
           .filter((entry) => entry.mappedNotes.includes(event.midiNote))
           .map((entry) => entry.targetNote);
 
-        if (process.env.NODE_ENV === "development" && targetNotes.length > 0) {
-          console.log("🔀 MIDI Mapping applied:", {
+        if (process.env.NODE_ENV === "development" && mapped.length > 0) {
+          console.log("MIDI Mapping applied:", {
             inputNote: event.midiNote,
-            targetNotes,
+            targetNotes: mapped,
           });
         }
 
-        // Use target notes if mapping found, otherwise fall back to original note
-        notesToMatch =
-          targetNotes.length > 0
-            ? targetNotes.map((n) => ({ midiNote: n }))
-            : [{ midiNote: event.midiNote }];
+        targetMidiNotes = mapped.length > 0 ? mapped : [event.midiNote];
       } else {
-        // No mapping configured, use original MIDI note
-        notesToMatch = [{ midiNote: event.midiNote }];
+        targetMidiNotes = [event.midiNote];
       }
 
-      // Calculate timing feedback
-      const feedback = calculateTimingFeedback(api, currentTick);
+      clearExpiredLateNotes();
 
-      if (!feedback) {
-        if (process.env.NODE_ENV === "development") {
-          console.log("❌ No beat found at current position");
-        }
+      if (!api?.tickCache || !api?.boundsLookup) {
         recordHit("error");
         return;
       }
 
-      // Check timing window - use absolute value for speed
-      const timingOffsetMs = Math.abs(feedback.timingOffset * 1000);
-
-      let timingResult: "perfect" | "good" | "missed";
-      if (timingOffsetMs <= TIMING_WINDOWS.PERFECT) {
-        timingResult = "perfect";
-      } else if (timingOffsetMs <= TIMING_WINDOWS.GOOD) {
-        timingResult = "good";
-      } else {
-        timingResult = "missed";
+      const tracks = api.tracks;
+      if (!tracks || tracks.length === 0) {
+        recordHit("error");
+        return;
       }
 
-      // Use the existing helper to match notes (circles only — crosses handled below)
-      const result = addSuccessMarkersForMatchedNotes(
-        api,
-        currentTick,
-        notesToMatch,
-        onAddCircleMarkerRef.current,
-      );
+      const playbackSpeed = api.playbackSpeed;
+      const scale = api.settings.display.scale;
 
-      // Check if the note was matched
-      if (result.matchedNotes.length > 0) {
-        // Correct note hit
-        recordHit(timingResult);
+      // --- Step 1: Check late notes (already passed their beat) ---
+      for (const targetNote of targetMidiNotes) {
+        const lateNote = lateNotesRef.current.get(targetNote);
+        if (!lateNote) continue;
 
-        if (process.env.NODE_ENV === "development") {
-          console.log("✅ Correct hit!", {
-            timing: timingResult,
-            timingOffset: `${timingOffsetMs.toFixed(1)}ms`,
-            note: event.midiNote,
-            matched: result.matchedNotes.map((n) => ({
-              string: n.string,
-              fret: n.fret,
-              midiNote: getMidiNoteNumber(n),
-            })),
-          });
-        }
-      } else if (result.wrongInputs.length > 0) {
-        // Check if errors should be ignored for this MIDI note (extra hit ignore)
-        const shouldIgnoreError = isErrorIgnoredRef.current(event.midiNote);
+        const diffTicks = tick - lateNote.startTick;
+        const diffMs = tickDiffToWallMs(diffTicks, lateNote.bpm, playbackSpeed);
 
-        // Check if ALL expected notes in this beat are in the skip list.
-        // If so, this beat is being practiced selectively and wrong inputs here
-        // should not be penalised (the player is focusing on other parts).
-        const allExpectedNotesSkipped =
-          feedback.beat.notes.length > 0 &&
-          feedback.beat.notes.every((n) =>
-            isNotationNoteSkippedRef.current(getMidiNoteNumber(n)),
+        if (diffMs <= TIMING_WINDOWS.GOOD) {
+          const result: HitResult =
+            diffMs <= TIMING_WINDOWS.PERFECT ? "perfect" : "lateGood";
+
+          recordHit(result);
+          hitNotesRef.current.add(lateNote.hitKey);
+          lateNotesRef.current.delete(targetNote);
+
+          const staffLine = getStaffLineIndex(
+            lateNote.note,
+            lateNote.beatBounds,
+            scale,
+          );
+          onAddCircleMarkerRef.current(
+            lateNote.beatBounds,
+            staffLine,
+            0,
+            lateNote.nextBeatBounds,
+            lateNote.note,
+            lateNote.startTick,
           );
 
-        if (!shouldIgnoreError && !allExpectedNotesSkipped) {
-          // Wrong note — add a cross marker for EACH wrong input.
-          // Resolve the correct staff line and beat bounds for the MIDI note hit.
-          const wrongPos = getWrongNotePosition(
-            api,
-            currentTick,
-            event.midiNote,
-          );
-
-          result.wrongInputs.forEach(() => {
-            onAddCrossMarkerRef.current(
-              wrongPos?.beatBounds ?? feedback.beatBounds,
-              wrongPos?.staffLineIndex ?? 2,
-              wrongPos?.timingOffset ?? feedback.timingOffset,
-              wrongPos?.nextBeatBounds ?? feedback.nextBeatBounds,
-              undefined, // no specific note → cross won't be deduped
-              wrongPos?.startTick ?? feedback.startTick,
-            );
-          });
-          recordHit("error");
           if (process.env.NODE_ENV === "development") {
-            console.log("❌ Wrong note!", {
-              inputNote: event.midiNote,
-              staffLineIndex: wrongPos?.staffLineIndex ?? 2,
-              expectedNotes: feedback.beat.notes.map((n) =>
-                getMidiNoteNumber(n),
-              ),
+            console.log("Late hit!", {
+              timing: result,
+              diffMs: diffMs.toFixed(1),
+              midiNote: targetNote,
             });
           }
-        } else {
-          // Error ignored: either extra-hit ignore or notation-skip practice mode
-          if (process.env.NODE_ENV === "development") {
-            console.log(
-              allExpectedNotesSkipped
-                ? "⏭️ Beat skipped (practice focus mode)"
-                : "⏸️ Error ignored for MIDI note",
-              { inputNote: event.midiNote },
-            );
-          }
+          return;
         }
       }
-    },
-    [recordHit],
-  ); // Only recordHit dependency - stable function
 
-  // Initialize MIDI input hook
-  const { isSupported, isConnected, inputs, error } = useMidiInput(
-    handleMidiMessage,
-    true, // Always enabled
+      // --- Step 2: Check current beat notes (on-time / slightly late) ---
+      for (const track of tracks) {
+        const beatResult = api.tickCache.findBeat(
+          new Set([track.index]),
+          tick,
+        );
+        if (!beatResult) continue;
+
+        const beat = beatResult.beat;
+        const beatStartTick = beatResult.start;
+        const diffTicks = tick - beatStartTick;
+        const scoreBpm = api.score?.tempo ?? 120;
+        const diffMs = tickDiffToWallMs(diffTicks, scoreBpm, playbackSpeed);
+
+        if (diffMs > TIMING_WINDOWS.GOOD) continue;
+
+        for (const note of beat.notes) {
+          const noteMidi = getMidiNoteNumber(note);
+          if (isNotationNoteSkippedRef.current(noteMidi)) continue;
+
+          const hitKey = `${track.index}:${beatStartTick}:${noteMidi}`;
+          if (hitNotesRef.current.has(hitKey)) continue;
+          if (!targetMidiNotes.includes(noteMidi)) continue;
+
+          const result: HitResult =
+            diffMs <= TIMING_WINDOWS.PERFECT ? "perfect" : "lateGood";
+
+          recordHit(result);
+          hitNotesRef.current.add(hitKey);
+          lateNotesRef.current.delete(noteMidi);
+
+          const beatBounds = api.boundsLookup.findBeat(beat);
+          if (beatBounds) {
+            let nextBeatBounds: alphaTab.rendering.BeatBounds | undefined;
+            if (beatResult.nextBeat) {
+              nextBeatBounds =
+                api.boundsLookup.findBeat(beatResult.nextBeat.beat) ??
+                undefined;
+            }
+
+            const beatDuration = beatResult.end - beatStartTick;
+            const timingOffset =
+              beatDuration > 0 ? diffTicks / beatDuration : 0;
+            const staffLine = getStaffLineIndex(note, beatBounds, scale);
+            onAddCircleMarkerRef.current(
+              beatBounds,
+              staffLine,
+              timingOffset,
+              nextBeatBounds,
+              note,
+              beatStartTick,
+            );
+          }
+
+          if (process.env.NODE_ENV === "development") {
+            console.log("Current beat hit!", {
+              timing: result,
+              diffMs: diffMs.toFixed(1),
+              midiNote: noteMidi,
+            });
+          }
+          return;
+        }
+      }
+
+      // --- Step 3: Check next beat notes (early hit) ---
+      for (const track of tracks) {
+        const beatResult = api.tickCache.findBeat(
+          new Set([track.index]),
+          tick,
+        );
+        if (!beatResult?.nextBeat) continue;
+
+        const nextBeat = beatResult.nextBeat.beat;
+        const nextBeatStartTick = beatResult.end;
+        const diffTicks = nextBeatStartTick - tick;
+        const scoreBpm = api.score?.tempo ?? 120;
+        const diffMs = tickDiffToWallMs(diffTicks, scoreBpm, playbackSpeed);
+
+        if (diffMs > TIMING_WINDOWS.GOOD) continue;
+
+        for (const note of nextBeat.notes) {
+          const noteMidi = getMidiNoteNumber(note);
+          if (isNotationNoteSkippedRef.current(noteMidi)) continue;
+
+          const hitKey = `${track.index}:${nextBeatStartTick}:${noteMidi}`;
+          if (hitNotesRef.current.has(hitKey)) continue;
+          if (!targetMidiNotes.includes(noteMidi)) continue;
+
+          const result: HitResult =
+            diffMs <= TIMING_WINDOWS.PERFECT ? "perfect" : "earlyGood";
+
+          recordHit(result);
+          hitNotesRef.current.add(hitKey);
+
+          const nextBeatBounds = api.boundsLookup.findBeat(nextBeat);
+          if (nextBeatBounds) {
+            const staffLine = getStaffLineIndex(note, nextBeatBounds, scale);
+            onAddCircleMarkerRef.current(
+              nextBeatBounds,
+              staffLine,
+              0,
+              undefined,
+              note,
+              nextBeatStartTick,
+            );
+          }
+
+          if (process.env.NODE_ENV === "development") {
+            console.log("Early hit!", {
+              timing: result,
+              diffMs: diffMs.toFixed(1),
+              midiNote: noteMidi,
+            });
+          }
+          return;
+        }
+      }
+
+      // --- Step 4: No match — error ---
+      const shouldIgnoreError = isErrorIgnoredRef.current(event.midiNote);
+
+      let allExpectedNotesSkipped = false;
+      for (const track of tracks) {
+        const beatResult = api.tickCache.findBeat(
+          new Set([track.index]),
+          tick,
+        );
+        if (!beatResult) continue;
+        if (
+          beatResult.beat.notes.length > 0 &&
+          beatResult.beat.notes.every((n) =>
+            isNotationNoteSkippedRef.current(getMidiNoteNumber(n)),
+          )
+        ) {
+          allExpectedNotesSkipped = true;
+          break;
+        }
+      }
+
+      if (!shouldIgnoreError && !allExpectedNotesSkipped) {
+        const wrongPos = getWrongNotePosition(api, tick, event.midiNote);
+
+        let fallbackBeatBounds: alphaTab.rendering.BeatBounds | null = null;
+        let fallbackTimingOffset = 0;
+        let fallbackNextBeatBounds: alphaTab.rendering.BeatBounds | undefined;
+        let fallbackStartTick = tick;
+
+        if (!wrongPos) {
+          const trackIndexes = new Set(tracks.map((t) => t.index));
+          const beatResult = api.tickCache.findBeat(trackIndexes, tick);
+          if (beatResult) {
+            fallbackBeatBounds = api.boundsLookup.findBeat(beatResult.beat);
+            const beatDuration = beatResult.end - beatResult.start;
+            fallbackTimingOffset =
+              beatDuration > 0
+                ? (tick - beatResult.start) / beatDuration
+                : 0;
+            fallbackStartTick = beatResult.start;
+            if (beatResult.nextBeat) {
+              fallbackNextBeatBounds =
+                api.boundsLookup.findBeat(beatResult.nextBeat.beat) ??
+                undefined;
+            }
+          }
+        }
+
+        const markerBounds = wrongPos?.beatBounds ?? fallbackBeatBounds;
+        if (markerBounds) {
+          onAddCrossMarkerRef.current(
+            markerBounds,
+            wrongPos?.staffLineIndex ?? 2,
+            wrongPos?.timingOffset ?? fallbackTimingOffset,
+            wrongPos?.nextBeatBounds ?? fallbackNextBeatBounds,
+            undefined,
+            wrongPos?.startTick ?? fallbackStartTick,
+          );
+        }
+
+        recordHit("error");
+        if (process.env.NODE_ENV === "development") {
+          console.log("Wrong note!", { inputNote: event.midiNote });
+        }
+      } else if (process.env.NODE_ENV === "development") {
+        console.log(
+          allExpectedNotesSkipped
+            ? "Beat skipped (practice focus mode)"
+            : "Error ignored for MIDI note",
+          { inputNote: event.midiNote },
+        );
+      }
+    },
+    [recordHit, clearExpiredLateNotes],
   );
 
-  // Log MIDI status (once on mount/change)
+  const { isSupported, isConnected, inputs, error } = useMidiInput(
+    handleMidiMessage,
+    true,
+  );
+
   useEffect(() => {
     if (process.env.NODE_ENV === "development") {
-      console.log("🎮 MIDI Rhythm Game Status:", {
+      console.log("MIDI Rhythm Game Status:", {
         supported: isSupported,
         connected: isConnected,
         devices: inputs.length,
@@ -304,19 +566,18 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
     }
   }, [isSupported, isConnected, inputs]);
 
-  // Log score changes periodically (throttled to avoid spam)
   useEffect(() => {
-    if (!isPlaying) {
-      return;
-    }
+    if (!isPlaying) return;
 
     const interval = setInterval(() => {
       const score = getScore();
       if (score.totalNotes > 0 || score.errors > 0) {
         if (process.env.NODE_ENV === "development") {
-          console.log("📊 Current Score:", {
+          console.log("Current Score:", {
             accuracy: `${score.accuracy}%`,
             perfect: score.perfect,
+            earlyGood: score.earlyGood,
+            lateGood: score.lateGood,
             good: score.good,
             missed: score.missed,
             errors: score.errors,
@@ -326,23 +587,26 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           });
         }
       }
-    }, 2000); // Log every 2 seconds instead of on every hit
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [isPlaying, getScore]);
 
-  // Log final score when playback stops, reset score when playback starts
   useEffect(() => {
     if (isPlaying) {
-      // Reset score at the start of each playback session
       resetScore();
+      hitNotesRef.current.clear();
+      lateNotesRef.current.clear();
+      lastBeatTickPerTrackRef.current.clear();
     } else {
       const score = getScore();
       if (score.totalNotes > 0) {
         if (process.env.NODE_ENV === "development") {
-          console.log("🏁 Final Score:", {
+          console.log("Final Score:", {
             accuracy: `${score.accuracy}%`,
             perfect: score.perfect,
+            earlyGood: score.earlyGood,
+            lateGood: score.lateGood,
             good: score.good,
             missed: score.missed,
             errors: score.errors,
@@ -354,15 +618,13 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
     }
   }, [isPlaying, getScore, resetScore]);
 
-  // Display MIDI status (for debugging)
   if (!isSupported && process.env.NODE_ENV === "development") {
-    console.warn("⚠️ Web MIDI API not supported in this browser");
+    console.warn("Web MIDI API not supported in this browser");
   }
 
   if (error && process.env.NODE_ENV === "development") {
-    console.error("❌ MIDI Error:", error);
+    console.error("MIDI Error:", error);
   }
 
-  // This component doesn't render anything - it's just for logic
   return null;
 });

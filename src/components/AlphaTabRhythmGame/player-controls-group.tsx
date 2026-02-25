@@ -361,13 +361,10 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
 
           {api.score && (
             <div className={styles["at-song-details"]}>
-              {/* <span className={styles["at-song-title"]}>{api.score.title}</span> */}
-              <span className={styles["at-song-title"]}>Some Song here</span>
+              <span className={styles["at-song-title"]}>{api.score.title}</span>
               <span> - </span>
               <span className={styles["at-song-artist"]}>
-                {/* {api.score.artist} */}
-                {/* {api.score.artist} */}
-                Some Artist here
+                {api.score.artist}
               </span>
             </div>
           )}

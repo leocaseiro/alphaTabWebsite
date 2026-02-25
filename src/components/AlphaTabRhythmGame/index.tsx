@@ -44,6 +44,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
   const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState(0);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   // Suppress ResizeObserver errors in development mode
   // These errors don't block functionality but can be noisy during development
@@ -176,9 +177,10 @@ const AlphaTabRhythmGameContent: React.FC = () => {
     setIsPlaying(e.state === alphaTab.synth.PlayerState.Playing);
   });
 
-  // Track current tick for rhythm game
+  // Track current tick and time for rhythm game
   useAlphaTabEvent(api, "playerPositionChanged", (e) => {
     setCurrentTick(e.currentTick);
+    setCurrentTimeMs(e.currentTime);
   });
 
   const onDragOver = (e: React.DragEvent) => {
@@ -411,6 +413,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
           api={api ?? null}
           isPlaying={isPlaying}
           currentTick={currentTick}
+          currentTimeMs={currentTimeMs}
           onAddCircleMarker={handleAddCircleMarker}
           onAddCrossMarker={handleAddCrossMarker}
           onClearMarkers={clearMarkers}

@@ -37,6 +37,8 @@ export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
           <strong>{score.accuracy}%</strong> Accuracy
           <strong>{score.perfect}</strong> Perfect
           <strong>{score.good}</strong> Good
+          (<strong>{score.earlyGood}</strong> Early
+          / <strong>{score.lateGood}</strong> Late)
           <strong>{score.missed}</strong> Missed
           <strong>{score.errors}</strong> Errors
           <strong>{score.streak}</strong> Streak
