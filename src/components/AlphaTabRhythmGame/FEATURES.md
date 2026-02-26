@@ -14,18 +14,18 @@ This document detailed the features in the MIDI rhythm game.
   - [x] loop
   - [x] count in,
   - [x] metronome
-- [ ] add bpm button
+- [x] add bpm button
 - add buttons for UI
   - [x] page/horizontal
-  - [ ] scale
-  - [ ] stretch
+  - [x] scale
+  - [x] stretch
 - volume control (backing track, metronome, guide notes)
-- display streak, and score on UI
-- **MIDI MAPPING FEATURE (NEW)** - Map multiple MIDI inputs to single notation
-- map midi simple, advanced (double kick, edge, bow, bell, etc)
-- auto bpm (reset score on each loop), Select minimal score, select bpm to increase by, number of attempts,
+  [x] display streak, and score on UI
+  [x] **MIDI MAPPING FEATURE (NEW)** - Map multiple MIDI inputs to single notation
+  [x] map midi simple, advanced (double kick, edge, bow, bell, etc)
+  [x] auto bpm (reset score on each loop), Select minimal score, select bpm to increase by, number of attempts,
 - map auto
-- good notes display in blue
+  [x] good notes display in blue, early (orange) and purple (late)
 - configuration for GOOD (ms), PERFECT (ms)
 - documentation to use chrome with (GPU, and memory saver)
 - test on Android (tablet)

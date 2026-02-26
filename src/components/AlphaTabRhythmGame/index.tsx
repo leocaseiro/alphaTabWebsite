@@ -40,7 +40,18 @@ const AlphaTabRhythmGameContent: React.FC = () => {
   const viewPortRef = React.createRef<HTMLDivElement>();
   const [isLoading, setLoading] = useState(true);
   const [sidePanel, setSidePanel] = useState(SidePanel.None);
-  const [bottomPanel, setBottomPanel] = useState(BottomPanel.None);
+  const [bottomPanels, setBottomPanels] = useState<Set<BottomPanel>>(new Set());
+  const toggleBottomPanel = useCallback((panel: BottomPanel) => {
+    setBottomPanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(panel)) {
+        next.delete(panel);
+      } else {
+        next.add(panel);
+      }
+      return next;
+    });
+  }, []);
   const [mediaType, setMediaType] = useState<MediaTypeState>({
     type: MediaType.Synth,
   });
@@ -447,7 +458,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
         />
 
         <div className={styles["at-footer"]}>
-          {api && api?.score && bottomPanel === BottomPanel.MediaSyncEditor && (
+          {api && api?.score && bottomPanels.has(BottomPanel.MediaSyncEditor) && (
             <MediaSyncEditor
               api={api}
               score={api!.score}
@@ -456,7 +467,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
               youtubePlayer={youtubePlayer.current ?? undefined}
             />
           )}
-          {api && api?.score && bottomPanel === BottomPanel.BpmControl && (
+          {api && api?.score && bottomPanels.has(BottomPanel.BpmControl) && (
             <BpmRangeControlPanel
               api={api}
               onSpeedChange={(newSpeed) => {
@@ -471,7 +482,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
               onAutoBpmGoalChange={autoBpm.setBpmGoal}
             />
           )}
-          {api && api?.score && bottomPanel === BottomPanel.RhythmGameScore && (
+          {api && api?.score && bottomPanels.has(BottomPanel.RhythmGameScore) && (
             <RhythmGameScorePanel getScore={getScore} />
           )}
           {api && (
@@ -480,8 +491,8 @@ const AlphaTabRhythmGameContent: React.FC = () => {
               viewPortRef={viewPortRef}
               sidePanel={sidePanel}
               onSidePanelChange={setSidePanel}
-              bottomPanel={bottomPanel}
-              onBottomPanelChange={setBottomPanel}
+              bottomPanels={bottomPanels}
+              onBottomPanelToggle={toggleBottomPanel}
               onAddCrossMarker={(
                 beatBounds,
                 staffLineIndex,

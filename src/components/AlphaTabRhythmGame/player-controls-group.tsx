@@ -19,8 +19,8 @@ const BPM_DEFAULT = 120; // Fallback if score BPM unavailable
 export interface PlayerControlsGroupProps {
   sidePanel: SidePanel;
   onSidePanelChange: (sidePanel: SidePanel) => void;
-  bottomPanel: BottomPanel;
-  onBottomPanelChange: (sidePanel: BottomPanel) => void;
+  bottomPanels: Set<BottomPanel>;
+  onBottomPanelToggle: (panel: BottomPanel) => void;
   api: alphaTab.AlphaTabApi;
   viewPortRef?: React.RefObject<HTMLDivElement | null>;
   onAddCrossMarker: (
@@ -59,8 +59,8 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   viewPortRef,
   sidePanel,
   onSidePanelChange,
-  bottomPanel,
-  onBottomPanelChange,
+  bottomPanels,
+  onBottomPanelToggle,
   onAddCrossMarker,
   onAddCircleMarker,
   onClearMarkers,
@@ -282,16 +282,12 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              if (bottomPanel === BottomPanel.BpmControl) {
-                onBottomPanelChange(BottomPanel.None);
-              } else {
-                onBottomPanelChange(BottomPanel.BpmControl);
-              }
+              onBottomPanelToggle(BottomPanel.BpmControl);
             }}
             data-tooltip-id="tooltip-bpm-control"
             data-tooltip-content="BPM Control"
             className={
-              bottomPanel === BottomPanel.BpmControl ? styles.active : ""
+              bottomPanels.has(BottomPanel.BpmControl) ? styles.active : ""
             }
           >
             <FontAwesomeIcon icon={solid.faMusic} />{" "}
@@ -342,16 +338,12 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              if (bottomPanel === BottomPanel.RhythmGameScore) {
-                onBottomPanelChange(BottomPanel.None);
-              } else {
-                onBottomPanelChange(BottomPanel.RhythmGameScore);
-              }
+              onBottomPanelToggle(BottomPanel.RhythmGameScore);
             }}
             data-tooltip-id="tooltip-rhythm-game-score"
             data-tooltip-content="Rhythm Game Score"
             className={
-              bottomPanel === BottomPanel.RhythmGameScore ? styles.active : ""
+              bottomPanels.has(BottomPanel.RhythmGameScore) ? styles.active : ""
             }
           >
             <FontAwesomeIcon icon={solid.faGamepad} />
@@ -379,14 +371,10 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
             type="button"
             onClick={(e) => {
               e.preventDefault();
-              if (bottomPanel === BottomPanel.MediaSyncEditor) {
-                onBottomPanelChange(BottomPanel.None);
-              } else {
-                onBottomPanelChange(BottomPanel.MediaSyncEditor);
-              }
+              onBottomPanelToggle(BottomPanel.MediaSyncEditor);
             }}
             className={
-              bottomPanel === BottomPanel.MediaSyncEditor ? styles.active : ""
+              bottomPanels.has(BottomPanel.MediaSyncEditor) ? styles.active : ""
             }
           >
             <FontAwesomeIcon icon={solid.faTimeline} /> Media Sync
