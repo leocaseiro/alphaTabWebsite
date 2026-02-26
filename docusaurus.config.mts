@@ -89,11 +89,11 @@ function getSortValue(
 const config: Config = {
   title: "alphaTab",
   tagline: "Build modern music notation apps for web, desktop and mobile",
-  url: "https://alphatab.net",
-  baseUrl: "/",
+  url: "https://leocaseiro.github.io",
+  baseUrl: "/alphaTabWebsite/",
   favicon: "img/favicon.ico",
-  organizationName: "CoderLine",
-  projectName: "alphaTab",
+  organizationName: "leocaseiro",
+  projectName: "alphaTabWebsite",
   onBrokenLinks: "throw",
   customFields: {
     isPreRelease: isPreRelease,
@@ -421,6 +421,21 @@ const config: Config = {
               assetOutputDir: config.output!.path,
             }),
           ],
+          // Prevent alphaTab from being split into a vendor chunk. The alphaTab web worker
+          // loads dependencies via importScripts(), and split vendor chunks can fail to
+          // load in the worker context (NetworkError). Keep @coderline/alphatab in the
+          // consuming chunk (worker entry) instead.
+          // optimization: !isServer
+          //   ? {
+          //       splitChunks: {
+          //         cacheGroups: {
+          //           defaultVendors: {
+          //             test: /[\\/]node_modules[\\/](?!@coderline[\\/]alphatab[\\/])/,
+          //           },
+          //         },
+          //       },
+          //     }
+          //   : undefined,
           resolve: {
             fallback: {
               fs: false,

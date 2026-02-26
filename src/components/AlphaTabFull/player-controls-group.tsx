@@ -8,6 +8,7 @@ import { ZoomLevelSelector } from "./zoom-level-selector";
 import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
+import environment from "@site/src/environment";
 import { useAlphaTabEvent } from "@site/src/hooks";
 import { openFile, openInputFile } from "@site/src/utils";
 
@@ -219,7 +220,7 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
           <LayoutSelector onLayoutChange={onLayoutChange} />
 
           <div className={styles["at-logo"]}>
-            powered by <img src="/img/alphaTab.png" />
+            powered by <img src={environment.withBaseUrl("/img/alphaTab.png")} />
           </div>
         </div>
       </div>

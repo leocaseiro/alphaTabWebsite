@@ -1,5 +1,6 @@
 import * as alphaTab from "@coderline/alphatab";
 import { useAlphaTab } from "@site/src/hooks";
+import environment from "@site/src/environment";
 import { useEffect } from "react";
 
 export interface AlphaTabPetalumaProps {
@@ -12,14 +13,14 @@ export const AlphaTabPetaluma: React.FC<AlphaTabPetalumaProps> = ({
     const [api, element] = useAlphaTab((s) => {
         s.core.tex = true;
         s.core.smuflFontSources = new Map<alphaTab.FontFileFormat, string>([
-            [alphaTab.FontFileFormat.OpenType, '/files/petaluma/Petaluma.otf']
+            [alphaTab.FontFileFormat.OpenType, environment.withBaseUrl('/files/petaluma/Petaluma.otf')]
         ])
     });
 
     useEffect(() => {
         if (api) {
             const request = new XMLHttpRequest();
-            request.open('GET', '/files/petaluma/petaluma_metadata.json', true);
+            request.open('GET', environment.withBaseUrl('/files/petaluma/petaluma_metadata.json'), true);
             request.responseType = 'json';
             request.onload = () => {
                 api.settings.display.resources.engravingSettings.fillFromSmufl(request.response);

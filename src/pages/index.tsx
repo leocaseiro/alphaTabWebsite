@@ -6,6 +6,7 @@ import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import styles from "./index.module.scss";
 import { HomepageFeatures } from "@site/src/components/HomepageFeatures";
 import { AlphaTabFull } from "@site/src/components/AlphaTabFull";
+import environment from "@site/src/environment";
 
 function HomepageHeader() {
   const { siteConfig } = useDocusaurusContext();
@@ -47,7 +48,7 @@ export default function Home() {
         <AlphaTabFull
           settings={{
             core: {
-              file: "/files/canon.gp",
+              file: environment.withBaseUrl("/files/canon.gp"),
               tracks: [0],
             },
           }}

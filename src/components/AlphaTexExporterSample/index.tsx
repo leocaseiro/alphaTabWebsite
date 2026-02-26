@@ -1,5 +1,6 @@
 import * as alphaTab from "@coderline/alphatab";
 import { useAlphaTab, useAlphaTabEvent } from "@site/src/hooks";
+import environment from "@site/src/environment";
 import { FC, useEffect, useState } from "react";
 import CodeBlock from "@theme/CodeBlock";
 import { openFile, openInputFile } from "@site/src/utils";
@@ -8,7 +9,7 @@ export const AlphaTexExporterSample: FC = () => {
     const [alphaTex, setAlphaTex] = useState('');
 
     const [api, element] = useAlphaTab((s) => {
-        s.core.file = '/files/Bach_Prelude_BWV999.gp'
+        s.core.file = environment.withBaseUrl('/files/Bach_Prelude_BWV999.gp')
     });
 
     useAlphaTabEvent(api, 'scoreLoaded', (score) => {

@@ -1,12 +1,13 @@
 import * as alphaTab from "@coderline/alphatab";
 import React, { useEffect, useState } from "react";
 import { useAlphaTab } from "@site/src/hooks";
+import environment from "@site/src/environment";
 import CodeBlock from '@theme/CodeBlock';
 import './styles.module.scss'
 
 export const AudioExportSample: React.FC = () => {
     const [api, element] = useAlphaTab(s => {
-        s.core.file = '/files/Bach_Prelude_BWV999.gp';
+        s.core.file = environment.withBaseUrl('/files/Bach_Prelude_BWV999.gp');
         s.player.playerMode = alphaTab.PlayerMode.EnabledSynthesizer;
         s.player.scrollMode = alphaTab.ScrollMode.Off;
         s.player.enableCursor = false;

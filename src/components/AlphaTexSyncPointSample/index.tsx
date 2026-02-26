@@ -1,4 +1,5 @@
 import { useAlphaTab } from '@site/src/hooks';
+import environment from '@site/src/environment';
 import * as alphaTab from '@coderline/alphatab';
 import styles from './styles.module.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -36,7 +37,7 @@ export const AlphaTexSyncPointSample = () => {
     useEffect(() => {
         if (api) {
             const request = new XMLHttpRequest();
-            request.open('GET', '/files/Bach_Prelude_BWV999.ogg', true);
+            request.open('GET', environment.withBaseUrl('/files/Bach_Prelude_BWV999.ogg'), true);
             request.responseType = 'arraybuffer';
             request.onload = () => {
                 const score = alphaTab.importer.ScoreLoader.loadAlphaTex(tex, api!.settings);

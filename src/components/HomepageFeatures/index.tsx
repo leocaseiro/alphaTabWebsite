@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './styles.module.scss';
+import environment from '@site/src/environment';
 
 type FeatureItemImage = string | (() => React.ReactElement);
 
@@ -12,7 +13,7 @@ type FeatureItem = {
 const FeatureList: FeatureItem[] = [
   {
     title: 'Feature Rich',
-    Images: '/img/landing/options.png',
+    Images: environment.withBaseUrl('/img/landing/options.png'),
     description: (
       <>
         alphaTab provides a huge variety of features to build your music notation app:
@@ -31,9 +32,9 @@ const FeatureList: FeatureItem[] = [
   {
     title: 'Responsive Display',
     Images: [
-      '/img/landing/alphatab-desktop.png',
-      '/img/landing/alphatab-tablet.png',
-      '/img/landing/alphatab-phone.png'
+      environment.withBaseUrl('/img/landing/alphatab-desktop.png'),
+      environment.withBaseUrl('/img/landing/alphatab-tablet.png'),
+      environment.withBaseUrl('/img/landing/alphatab-phone.png'),
     ],
     description: (
       <>
@@ -46,7 +47,7 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'Designed for Cross Platform and Full-Stack usage',
-    Images: '/img/landing/platforms.png',
+    Images: environment.withBaseUrl('/img/landing/platforms.png'),
     description: (
       <>
         The core of alphaTab is designed to run with minimal external dependencies
@@ -60,7 +61,7 @@ const FeatureList: FeatureItem[] = [
     title: 'Audio Playback',
     Images: () => {
       return (
-        <video src='/img/landing/audio.mp4' autoPlay={true} muted={true} loop={true} controls={false} style={{maxWidth: "100%"}} />
+        <video src={environment.withBaseUrl('/img/landing/audio.mp4')} autoPlay={true} muted={true} loop={true} controls={false} style={{maxWidth: "100%"}} />
       )
     },
     description: (
@@ -78,7 +79,7 @@ const FeatureList: FeatureItem[] = [
   },
   {
     title: 'Free as in Beer',
-    Images: '/img/landing/opensource.png',
+    Images: environment.withBaseUrl('/img/landing/opensource.png'),
     description: (
       <>
         alphaTab is provided to you for free under the terms of the MPL-2.0 license. 

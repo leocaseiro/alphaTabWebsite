@@ -1,5 +1,6 @@
 import * as alphaTab from "@coderline/alphatab";
 import type { ColorMode } from '@docusaurus/theme-common';
+import siteConfig from '@generated/docusaurus.config';
 
 const defaultColors = (new alphaTab.Settings()).display.resources;
 
@@ -22,8 +23,8 @@ function setAlphaTabColors(settings: alphaTab.Settings, colorMode: ColorMode) {
 }
 
  function setAlphaTabDefaults(settings: alphaTab.Settings, colorMode: ColorMode) {
-    settings.core.fontDirectory = "/font/";
-    settings.player.soundFont = "/soundfont/sonivox.sf3";
+    settings.core.fontDirectory = withBaseUrl("/font/");
+    settings.player.soundFont = withBaseUrl("/soundfont/sonivox.sf3");
     settings.player.scrollMode = alphaTab.ScrollMode.Off;
     settings.player.playerMode = alphaTab.PlayerMode.Disabled;
 
@@ -56,7 +57,16 @@ function setAlphaTabColors(settings: alphaTab.Settings, colorMode: ColorMode) {
     settings.display.resources.numberedNotationGraceFont.families = ["Noto Sans"];
 }
 
+function withBaseUrl(path: string): string {
+  const base = siteConfig.baseUrl ?? '/';
+  if (path.startsWith('/')) {
+    return `${base}${path.slice(1)}`;
+  }
+  return path;
+}
+
 export default {
   setAlphaTabColors,
-  setAlphaTabDefaults
+  setAlphaTabDefaults,
+  withBaseUrl,
 };

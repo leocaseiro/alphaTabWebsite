@@ -19,7 +19,7 @@ export const ExternalMediaSample: React.FC<ExternalMediaSampleProps> = ({showCod
     useEffect(() => {
         const settings = new alphaTab.Settings();
         environment.setAlphaTabDefaults(settings);
-        settings.core.file = '/files/Bach_Prelude_BWV999.gp';
+        settings.core.file = environment.withBaseUrl('/files/Bach_Prelude_BWV999.gp');
         settings.player.playerMode = alphaTab.PlayerMode.EnabledExternalMedia;
         settings.player.scrollMode = alphaTab.ScrollMode.Off;
 
@@ -118,7 +118,7 @@ export const ExternalMediaSample: React.FC<ExternalMediaSampleProps> = ({showCod
 
 
     return <>
-        <audio ref={audio} src="/files/Bach_Prelude_BWV999_original.ogg" controls={true} autoPlay={false} />
+        <audio ref={audio} src={environment.withBaseUrl("/files/Bach_Prelude_BWV999_original.ogg")} controls={true} autoPlay={false} />
         <div ref={alphaTabWithExternalMedia} />
         {showCode !== false && <CodeBlock language="typescript" title="TypeScript Code for this sample">
             {[

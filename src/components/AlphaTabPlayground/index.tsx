@@ -3,6 +3,7 @@
 import * as alphaTab from '@coderline/alphatab';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAlphaTab, useAlphaTabEvent } from '@site/src/hooks';
+import environment from '@site/src/environment';
 import styles from './styles.module.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import * as solid from '@fortawesome/free-solid-svg-icons';
@@ -27,7 +28,7 @@ export const AlphaTabPlayground: React.FC = () => {
 
     const [api, element] = useAlphaTab(s => {
         s.core.engine = 'svg';
-        s.core.file = '/files/canon-full.gp';
+        s.core.file = environment.withBaseUrl('/files/canon-full.gp');
         s.core.tracks = [0, 1];
         s.player.scrollElement = viewPortRef.current!;
         s.player.scrollOffsetY = -10;
