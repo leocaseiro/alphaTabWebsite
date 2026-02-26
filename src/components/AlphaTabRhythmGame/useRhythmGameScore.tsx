@@ -9,6 +9,24 @@ export const TIMING_WINDOWS = {
   GOOD: 300, // ±300ms for good
 } as const;
 
+export type AccuracyTier = "excellent" | "great" | "good" | "fair" | "poor";
+
+export const ACCURACY_TIERS: { tier: AccuracyTier; minAccuracy: number }[] = [
+  { tier: "excellent", minAccuracy: 99 },
+  { tier: "great", minAccuracy: 81 },
+  { tier: "good", minAccuracy: 71 },
+  { tier: "fair", minAccuracy: 31 },
+  { tier: "poor", minAccuracy: 0 },
+];
+
+export function getAccuracyTier(accuracy: number): AccuracyTier {
+  if (accuracy >= 99) return "excellent";
+  if (accuracy >= 81) return "great";
+  if (accuracy >= 71) return "good";
+  if (accuracy >= 31) return "fair";
+  return "poor";
+}
+
 /**
  * Score statistics
  */

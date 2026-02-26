@@ -68,6 +68,8 @@ interface MidiRhythmGameProps {
   recordHit: (result: HitResult) => void;
   resetScore: () => void;
   getScore: () => RhythmGameScore;
+  autoBpmEnabled: boolean;
+  onLoopCycleComplete: ((score: RhythmGameScore) => void) | null;
 }
 
 /**
@@ -97,6 +99,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   recordHit,
   resetScore,
   getScore,
+  autoBpmEnabled,
+  onLoopCycleComplete,
 }: MidiRhythmGameProps) {
   const { getMapping, isErrorIgnored, isNotationNoteSkipped } =
     useMidiMapping();
@@ -111,6 +115,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const getMappingRef = useRef(getMapping);
   const isErrorIgnoredRef = useRef(isErrorIgnored);
   const isNotationNoteSkippedRef = useRef(isNotationNoteSkipped);
+  const autoBpmEnabledRef = useRef(autoBpmEnabled);
+  const onLoopCycleCompleteRef = useRef(onLoopCycleComplete);
 
   const hitNotesRef = useRef<Set<string>>(new Set());
   const lateNotesRef = useRef<Map<number, LateNoteInfo>>(new Map());
@@ -143,6 +149,12 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   useEffect(() => {
     isNotationNoteSkippedRef.current = isNotationNoteSkipped;
   }, [isNotationNoteSkipped]);
+  useEffect(() => {
+    autoBpmEnabledRef.current = autoBpmEnabled;
+  }, [autoBpmEnabled]);
+  useEffect(() => {
+    onLoopCycleCompleteRef.current = onLoopCycleComplete;
+  }, [onLoopCycleComplete]);
 
   // Loop detection: tick jumps backward while looping
   useEffect(() => {
@@ -154,7 +166,18 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
       apiRef.current?.isLooping &&
       currentTick < prevTick - 960
     ) {
-      if (process.env.NODE_ENV === "development") {
+      if (autoBpmEnabledRef.current && onLoopCycleCompleteRef.current) {
+        const cycleScore = getScore();
+        onLoopCycleCompleteRef.current(cycleScore);
+        resetScore();
+        if (process.env.NODE_ENV === "development") {
+          console.log("Auto-BPM loop cycle complete", {
+            accuracy: cycleScore.accuracy,
+            prevTick,
+            currentTick,
+          });
+        }
+      } else if (process.env.NODE_ENV === "development") {
         console.log("Loop detected — clearing markers, keeping score", {
           prevTick,
           currentTick,
@@ -166,7 +189,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
       lateNotesRef.current.clear();
       lastBeatTickPerTrackRef.current.clear();
     }
-  }, [currentTick, isPlaying, onClearMarkers, getScore]);
+  }, [currentTick, isPlaying, onClearMarkers, getScore, resetScore]);
 
   /**
    * Remove late notes that have exceeded GOOD_RANGE — they are truly missed.

@@ -30,6 +30,11 @@ import { MidiRhythmGame } from "./MidiRhythmGame";
 import { MidiMappingProvider } from "./midi-mapping-context";
 import { RhythmGameScorePanel } from "./rhythm-game-score-panel";
 import { useRhythmGameScore, type HitResult } from "./useRhythmGameScore";
+import { useAutoBpm } from "./useAutoBpm";
+import {
+  AutoBpmToastContainer,
+  useAutoBpmToast,
+} from "./auto-bpm-toast";
 
 const AlphaTabRhythmGameContent: React.FC = () => {
   const viewPortRef = React.createRef<HTMLDivElement>();
@@ -42,6 +47,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
   const youtubePlayer = useRef<HTMLMediaElementLike | null>(null);
   const { markers, addMarker, clearMarkers } = useCrossMarkers();
   const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
+  const { toasts, showToast } = useAutoBpmToast();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTick, setCurrentTick] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -149,6 +155,8 @@ const AlphaTabRhythmGameContent: React.FC = () => {
     setLoading(false);
   });
 
+  const autoBpm = useAutoBpm(api ?? null, showToast);
+
   useAlphaTabEvent(api, "scoreLoaded", (score) => {
     // Log track information for debugging
     console.log("Score loaded:", {
@@ -161,6 +169,8 @@ const AlphaTabRhythmGameContent: React.FC = () => {
         staves: t.staves.length,
       })),
     });
+
+    autoBpm.setTrackBpm(score.tempo ?? 120);
 
     if (score.backingTrack?.rawAudioFile) {
       setMediaType({
@@ -343,6 +353,14 @@ const AlphaTabRhythmGameContent: React.FC = () => {
     }
   }, [api, mediaType.type]);
 
+  // Force looping when auto-BPM is enabled
+  useEffect(() => {
+    if (!api) return;
+    if (autoBpm.settings.enabled) {
+      api.isLooping = true;
+    }
+  }, [api, autoBpm.settings.enabled]);
+
   return (
     <>
       <div
@@ -410,6 +428,8 @@ const AlphaTabRhythmGameContent: React.FC = () => {
           markers={markers}
         />
 
+        <AutoBpmToastContainer toasts={toasts} />
+
         {/* MIDI Rhythm Game Integration */}
         <MidiRhythmGame
           api={api ?? null}
@@ -422,6 +442,8 @@ const AlphaTabRhythmGameContent: React.FC = () => {
           recordHit={recordHit}
           resetScore={resetScore}
           getScore={getScore}
+          autoBpmEnabled={autoBpm.settings.enabled}
+          onLoopCycleComplete={autoBpm.onLoopCycleComplete}
         />
 
         <div className={styles["at-footer"]}>
@@ -441,6 +463,12 @@ const AlphaTabRhythmGameContent: React.FC = () => {
                 api.playbackSpeed = newSpeed;
                 api.updateSettings();
               }}
+              autoBpmSettings={autoBpm.settings}
+              onAutoBpmEnabledChange={autoBpm.setEnabled}
+              onAutoBpmMinLoopsChange={autoBpm.setMinLoopsPerCycle}
+              onAutoBpmAccuracyGoalChange={autoBpm.setAccuracyGoalTier}
+              onAutoBpmIncrementChange={autoBpm.setBpmIncrement}
+              onAutoBpmGoalChange={autoBpm.setBpmGoal}
             />
           )}
           {api && api?.score && bottomPanel === BottomPanel.RhythmGameScore && (

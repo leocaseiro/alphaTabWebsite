@@ -5,21 +5,13 @@ import { useState, useEffect } from "react";
 import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
-import type { RhythmGameScore } from "./useRhythmGameScore";
+import { type RhythmGameScore, getAccuracyTier } from "./useRhythmGameScore";
 
 interface RhythmGameScorePanelProps {
   getScore: () => RhythmGameScore;
 }
 
 const POLL_INTERVAL_MS = 200;
-
-function getAccuracyTier(accuracy: number): string {
-  if (accuracy >= 99) return "excellent";
-  if (accuracy >= 81) return "great";
-  if (accuracy >= 71) return "good";
-  if (accuracy >= 31) return "fair";
-  return "poor";
-}
 
 export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
   getScore,

@@ -1650,3 +1650,178 @@
     opacity: 1;
   }
 }
+
+/* Auto BPM Toast */
+.auto-bpm-toast-container {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.auto-bpm-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  background: rgba(46, 125, 50, 0.92);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  animation: autoBpmSlideIn 0.3s ease-out;
+  white-space: nowrap;
+
+  &[data-exiting] {
+    animation: autoBpmFadeOut 0.4s ease-in forwards;
+  }
+}
+
+.auto-bpm-toast-icon {
+  font-size: 16px;
+}
+
+@keyframes autoBpmSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes autoBpmFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* Auto BPM section in BPM control panel */
+.auto-bpm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.auto-bpm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.auto-bpm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: rgba(128, 128, 128, 0.1);
+  }
+
+  &[data-active] {
+    background: rgba(46, 125, 50, 0.15);
+    border-color: rgba(46, 125, 50, 0.5);
+    color: #2e7d32;
+  }
+}
+
+[data-theme="dark"] .auto-bpm-toggle[data-active] {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.5);
+  color: #81c784;
+}
+
+.auto-bpm-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+.auto-bpm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auto-bpm-field-label {
+  font-size: 11px;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.auto-bpm-field-input {
+  padding: 3px 6px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 4px;
+  font-size: 13px;
+  background: transparent;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(46, 125, 50, 0.6);
+  }
+}
+
+.auto-bpm-field-select {
+  padding: 3px 6px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 4px;
+  font-size: 13px;
+  background: transparent;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(46, 125, 50, 0.6);
+  }
+}
+
+.bpm-panel-value-active {
+  animation: bpmPulseGreen 1.5s ease-in-out infinite;
+  color: #2e7d32;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .bpm-panel-value-active {
+  color: #81c784;
+}
+
+@keyframes bpmPulseGreen {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}

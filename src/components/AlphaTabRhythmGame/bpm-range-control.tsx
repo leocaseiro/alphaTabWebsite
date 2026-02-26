@@ -9,18 +9,33 @@ import * as solid from "@fortawesome/free-solid-svg-icons";
 import { BpmSpeedControl } from "./bpm-speed-control";
 import { useAlphaTabEvent } from "@site/src/hooks";
 import { settingsSyncEmitter } from "./settings-sync";
+import type { AccuracyTier } from "./useRhythmGameScore";
+import type { AutoBpmSettings } from "./useAutoBpm";
+import { AUTO_BPM_TIERS } from "./useAutoBpm";
 
 export interface BpmRangeControlPanelProps {
   api: alphaTab.AlphaTabApi;
   onSpeedChange: (speed: number) => void;
+  autoBpmSettings: AutoBpmSettings;
+  onAutoBpmEnabledChange: (enabled: boolean) => void;
+  onAutoBpmMinLoopsChange: (loops: number) => void;
+  onAutoBpmAccuracyGoalChange: (tier: AccuracyTier) => void;
+  onAutoBpmIncrementChange: (increment: number) => void;
+  onAutoBpmGoalChange: (goal: number) => void;
 }
 
-const BPM_DEFAULT_ORIGINAL = 120; // Fallback if score BPM unavailable
-const BPM_STEP_CHANGE = 5; // Change BPM by 5
+const BPM_DEFAULT_ORIGINAL = 120;
+const BPM_STEP_CHANGE = 5;
 
 export const BpmRangeControlPanel: React.FC<BpmRangeControlPanelProps> = ({
   api,
   onSpeedChange,
+  autoBpmSettings,
+  onAutoBpmEnabledChange,
+  onAutoBpmMinLoopsChange,
+  onAutoBpmAccuracyGoalChange,
+  onAutoBpmIncrementChange,
+  onAutoBpmGoalChange,
 }) => {
   const [originalBpm, setOriginalBpm] = useState(
     api.score?.tempo ?? BPM_DEFAULT_ORIGINAL,
@@ -120,10 +135,107 @@ export const BpmRangeControlPanel: React.FC<BpmRangeControlPanelProps> = ({
             <FontAwesomeIcon icon={solid.faPlus} />
           </button>
 
-          <div className={styles["bpm-panel-value"]}>
+          <div
+            className={`${styles["bpm-panel-value"]} ${autoBpmSettings.enabled ? styles["bpm-panel-value-active"] : ""}`}
+          >
             <strong>{currentBpm}</strong> BPM ({percentageDisplay}%)
           </div>
         </div>
+      </div>
+
+      <div className={styles["auto-bpm-section"]}>
+        <div className={styles["auto-bpm-header"]}>
+          <button
+            type="button"
+            className={styles["auto-bpm-toggle"]}
+            data-active={autoBpmSettings.enabled || undefined}
+            onClick={() => onAutoBpmEnabledChange(!autoBpmSettings.enabled)}
+            data-tooltip-id="tooltip-playground"
+            data-tooltip-content="Automatically increase BPM when accuracy goal is met"
+          >
+            <FontAwesomeIcon icon={solid.faRobot} />
+            Auto BPM {autoBpmSettings.enabled ? "ON" : "OFF"}
+          </button>
+        </div>
+
+        {autoBpmSettings.enabled && (
+          <div className={styles["auto-bpm-settings"]}>
+            <div className={styles["auto-bpm-field"]}>
+              <span className={styles["auto-bpm-field-label"]}>Loops/Cycle</span>
+              <input
+                type="number"
+                className={styles["auto-bpm-field-input"]}
+                min={1}
+                max={20}
+                value={autoBpmSettings.minLoopsPerCycle}
+                onChange={(e) =>
+                  onAutoBpmMinLoopsChange(
+                    Math.max(1, parseInt(e.target.value, 10) || 1),
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            <div className={styles["auto-bpm-field"]}>
+              <span className={styles["auto-bpm-field-label"]}>
+                Accuracy Goal
+              </span>
+              <select
+                className={styles["auto-bpm-field-select"]}
+                value={autoBpmSettings.accuracyGoalTier}
+                onChange={(e) =>
+                  onAutoBpmAccuracyGoalChange(e.target.value as AccuracyTier)
+                }
+                onClick={(e) => e.stopPropagation()}
+              >
+                {AUTO_BPM_TIERS.map((t) => (
+                  <option key={t.tier} value={t.tier}>
+                    {t.tier} ({t.minAccuracy}%+)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className={styles["auto-bpm-field"]}>
+              <span className={styles["auto-bpm-field-label"]}>
+                BPM Increment
+              </span>
+              <input
+                type="number"
+                className={styles["auto-bpm-field-input"]}
+                min={1}
+                max={50}
+                value={autoBpmSettings.bpmIncrement}
+                onChange={(e) =>
+                  onAutoBpmIncrementChange(
+                    Math.max(1, parseInt(e.target.value, 10) || 5),
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            <div className={styles["auto-bpm-field"]}>
+              <span className={styles["auto-bpm-field-label"]}>
+                BPM Goal
+              </span>
+              <input
+                type="number"
+                className={styles["auto-bpm-field-input"]}
+                min={1}
+                max={999}
+                value={autoBpmSettings.bpmGoal}
+                onChange={(e) =>
+                  onAutoBpmGoalChange(
+                    Math.max(1, parseInt(e.target.value, 10) || 120),
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
