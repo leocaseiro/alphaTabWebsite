@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkalphatab_website=globalThis.webpackChunkalphatab_website||[]).push([[58913],{58913(a,b,e){e.r(b)}}]);

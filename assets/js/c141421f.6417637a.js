@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkalphatab_website=globalThis.webpackChunkalphatab_website||[]).push([[80957],{40936(a){a.exports=JSON.parse('{"name":"docusaurus-theme-search-algolia","id":"default"}')}}]);

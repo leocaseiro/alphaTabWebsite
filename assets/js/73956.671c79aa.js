@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkalphatab_website=globalThis.webpackChunkalphatab_website||[]).push([[73956],{73956(a,e,b){b.d(e,{createRadarServices:()=>s.f});var s=b(2852);b(58198)}}]);

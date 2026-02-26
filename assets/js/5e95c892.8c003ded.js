@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkalphatab_website=globalThis.webpackChunkalphatab_website||[]).push([[9647],{7121(e,a,s){s.r(a),s.d(a,{default:()=>c});s(96540);var r=s(34164),t=s(17559),l=s(45500),h=s(22831),u=s(62765),b=s(74848);function c(e){return(0,b.jsx)(l.e3,{className:(0,r.A)(t.G.wrapper.docsPages),children:(0,b.jsx)(u.A,{children:(0,h.v)(e.route.routes)})})}}}]);
