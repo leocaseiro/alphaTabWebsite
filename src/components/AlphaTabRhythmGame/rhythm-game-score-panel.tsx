@@ -63,27 +63,27 @@ export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
       <div className={styles["score-panel-details"]}>
         <div className={styles["score-panel-detail"]}>
           <span className={styles["score-panel-detail-label"]}>Perfect</span>
-          <span className={styles["score-panel-detail-value"]} data-type="perfect">{score.perfect}</span>
+          <span className={styles["score-panel-detail-value"]} data-type={score.perfect ? "perfect" : undefined}>{score.perfect}</span>
         </div>
         <div className={styles["score-panel-detail"]}>
           <span className={styles["score-panel-detail-label"]}>Good</span>
-          <span className={styles["score-panel-detail-value"]} data-type="good">{score.good}</span>
+          <span className={styles["score-panel-detail-value"]} data-type={score.good ? "good" : undefined}>{score.good}</span>
         </div>
         <div className={styles["score-panel-detail"]}>
           <span className={styles["score-panel-detail-label"]}>Early</span>
-          <span className={styles["score-panel-detail-value"]} data-type="early">{score.earlyGood}</span>
+          <span className={styles["score-panel-detail-value"]} data-type={score.earlyGood ? "early" : undefined}>{score.earlyGood}</span>
         </div>
         <div className={styles["score-panel-detail"]}>
           <span className={styles["score-panel-detail-label"]}>Late</span>
-          <span className={styles["score-panel-detail-value"]} data-type="late">{score.lateGood}</span>
+          <span className={styles["score-panel-detail-value"]} data-type={score.lateGood ? "late" : undefined}>{score.lateGood}</span>
         </div>
         <div className={styles["score-panel-detail"]}>
           <span className={styles["score-panel-detail-label"]}>Miss</span>
-          <span className={styles["score-panel-detail-value"]} data-type="miss">{score.missed}</span>
+          <span className={styles["score-panel-detail-value"]} data-type={score.missed ? "miss" : undefined}>{score.missed}</span>
         </div>
         <div className={styles["score-panel-detail"]}>
           <span className={styles["score-panel-detail-label"]}>Errors</span>
-          <span className={styles["score-panel-detail-value"]} data-type="error">{score.errors}</span>
+          <span className={styles["score-panel-detail-value"]} data-type={score.errors ? "error" : undefined}>{score.errors}</span>
         </div>
       </div>
     </div>

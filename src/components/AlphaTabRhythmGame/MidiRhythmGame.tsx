@@ -289,6 +289,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const handleMidiMessage = useCallback(
     (event: MidiInputEvent) => {
       if (event.type !== "noteOn") return;
+      if (!isPlayingRef.current) return;
 
       const api = apiRef.current;
       const tick = currentTickRef.current;

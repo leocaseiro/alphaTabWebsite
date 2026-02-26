@@ -26,6 +26,7 @@ This document detailed the features in the MIDI rhythm game.
   [x] auto bpm (reset score on each loop), Select minimal score, select bpm to increase by, number of attempts,
 - map auto
   [x] good notes display in blue, early (orange) and purple (late)
+- shortcuts (play, pause, restart, etc)
 - configuration for GOOD (ms), PERFECT (ms)
 - documentation to use chrome with (GPU, and memory saver)
 - test on Android (tablet)

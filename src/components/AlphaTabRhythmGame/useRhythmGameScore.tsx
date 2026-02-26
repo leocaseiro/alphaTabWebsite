@@ -9,6 +9,8 @@ export const TIMING_WINDOWS = {
   GOOD: 300, // ±300ms for good
 } as const;
 
+export const GOOD_ACCURACY_WEIGHT = 0.9;
+
 export type AccuracyTier = "excellent" | "great" | "good" | "fair" | "poor";
 
 export const ACCURACY_TIERS: { tier: AccuracyTier; minAccuracy: number }[] = [
@@ -127,11 +129,13 @@ export function useRhythmGameScore(): UseRhythmGameScoreReturn {
       score.maxStreak = score.streak;
     }
 
-    const totalHits = score.perfect + score.good;
+    const weightedHits = score.perfect + score.good * GOOD_ACCURACY_WEIGHT;
     const totalAttempts = score.totalNotes + score.errors;
 
     score.accuracy =
-      totalAttempts === 0 ? 100 : Math.round((totalHits / totalAttempts) * 100);
+      totalAttempts === 0
+        ? 100
+        : Math.round((weightedHits / totalAttempts) * 100);
   }, []);
 
   const resetScore = useCallback(() => {
