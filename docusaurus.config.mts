@@ -340,6 +340,7 @@ const config: Config = {
         if (!isServer) {
           config.devServer = {
             ...config.devServer,
+            allowedHosts: 'all',
             client: {
               ...config.devServer?.client,
               overlay: {

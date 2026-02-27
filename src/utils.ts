@@ -2,6 +2,9 @@ import * as alphaTab from "@coderline/alphatab";
 
 export function openFile(api: alphaTab.AlphaTabApi, file: Blob) {
   const reader = new FileReader();
+  reader.onerror = () => {
+    console.error("FileReader error:", reader.error);
+  };
   reader.onload = (data) => {
     api.load(data.target?.result, [0]);
   };
@@ -9,10 +12,10 @@ export function openFile(api: alphaTab.AlphaTabApi, file: Blob) {
 }
 
 export function openInputFile(api: alphaTab.AlphaTabApi) {
-  const input = document.createElement('input');
-  input.type = 'file';
+  const input = document.createElement("input");
+  input.type = "file";
   if (!isIOS()) {
-    input.accept = '.gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx';
+    input.accept = ".gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx";
   }
   input.onchange = () => {
     if (input.files?.length === 1) {
@@ -22,40 +25,69 @@ export function openInputFile(api: alphaTab.AlphaTabApi) {
   document.body.appendChild(input);
   input.click();
   document.body.removeChild(input);
-};
+}
 
+const IOS_FILE_INPUT_ID = "ios-file-input";
+
+export function setupIOSFileInput(api: alphaTab.AlphaTabApi) {
+  let input = document.getElementById(
+    IOS_FILE_INPUT_ID,
+  ) as HTMLInputElement | null;
+  if (!input) {
+    input = document.createElement("input");
+    input.id = IOS_FILE_INPUT_ID;
+    input.type = "file";
+    input.accept = ".gp,.gp3,.gp4,.gp5,.gpx,.musicxml,.mxml,.xml,.capx";
+    input.style.display = "none";
+    document.body.appendChild(input);
+  }
+  input.onchange = () => {
+    if (input!.files?.[0]) {
+      openFile(api, input!.files[0]);
+    }
+    input!.value = "";
+  };
+}
+
+export { IOS_FILE_INPUT_ID };
 
 export function downloadFile(api: alphaTab.AlphaTabApi) {
   const exporter = new alphaTab.exporter.Gp7Exporter();
   const score = api.score!;
   const data = exporter.export(score, api.settings);
-  const a = document.createElement('a');
-  a.download = score.title.length > 0 ? `${score.title.trim()}.gp` : 'Untitled.gp';
-  a.href = URL.createObjectURL(new Blob([data], { type: 'application/gp' }));
+  const a = document.createElement("a");
+  a.download =
+    score.title.length > 0 ? `${score.title.trim()}.gp` : "Untitled.gp";
+  a.href = URL.createObjectURL(new Blob([data], { type: "application/gp" }));
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
 
-
-const iOSPlatforms = new Set(['iPhone', 'iPad', 'iPod']);
-function isIOS() {
-  // Tested: 
-  // - iPad Pro 12.9 - iOS 12 (navigator.platform = "iPad")
-  // - iPad Pro 11 2020 - iOS 13 (navigator.platform = "iPad")
-  // - iPad Air 4 - iOS 14 (navigator.platform = "iPad")
-  // - iPad Mini 2021 - iOS 15 (navigator.platform = "iPad")
-  // - iPad Pro 12.9 2022 - iOS 16 (navigator.platform = "iPad")
-  // - iPad Pro 12.9 2021 - iOS 17 (navigator.platform = "MacIntel" && navigator.maxTouchPoints > 1)
-  // - iPad 9th - iOS 18 (navigator.platform = "iPad")
-  // - iPhone XS - iOS 12 (navigator.platform = "iPhone")
-  // - iPhone 11 - iOS 13 (navigator.platform = "iPhone")
-  // - iPhone 12 - iOS 14 (navigator.platform = "iPhone")
-  // - iPhone 13 - iOS 15 (navigator.platform = "iPhone")
-  // - iPhone 14 - iOS 16 (navigator.platform = "iPhone")
-  // - iPhone 15 - iOS 17 (navigator.platform = "iPhone")
-  // - iPhone 16 - iOS 18 (navigator.platform = "iPhone")
-  // - iPhone 16 - iOS 18.6 (navigator.platform = "iPhone")
-  return iOSPlatforms.has(navigator.platform) ||
-    navigator.platform == "MacIntel" && navigator.maxTouchPoints > 1;
+const iOSPlatforms = new Set(["iPhone", "iPad", "iPod"]);
+export function isIOS() {
+  try {
+    // Tested:
+    // - iPad Pro 12.9 - iOS 12 (navigator.platform = "iPad")
+    // - iPad Pro 11 2020 - iOS 13 (navigator.platform = "iPad")
+    // - iPad Air 4 - iOS 14 (navigator.platform = "iPad")
+    // - iPad Mini 2021 - iOS 15 (navigator.platform = "iPad")
+    // - iPad Pro 12.9 2022 - iOS 16 (navigator.platform = "iPad")
+    // - iPad Pro 12.9 2021 - iOS 17 (navigator.platform = "MacIntel" && navigator.maxTouchPoints > 1)
+    // - iPad 9th - iOS 18 (navigator.platform = "iPad")
+    // - iPhone XS - iOS 12 (navigator.platform = "iPhone")
+    // - iPhone 11 - iOS 13 (navigator.platform = "iPhone")
+    // - iPhone 12 - iOS 14 (navigator.platform = "iPhone")
+    // - iPhone 13 - iOS 15 (navigator.platform = "iPhone")
+    // - iPhone 14 - iOS 16 (navigator.platform = "iPhone")
+    // - iPhone 15 - iOS 17 (navigator.platform = "iPhone")
+    // - iPhone 16 - iOS 18 (navigator.platform = "iPhone")
+    // - iPhone 16 - iOS 18.6 (navigator.platform = "iPhone")
+    return (
+      iOSPlatforms.has(navigator.platform) ||
+      (navigator.platform == "MacIntel" && navigator.maxTouchPoints > 1)
+    );
+  } catch {
+    return false;
+  }
 }

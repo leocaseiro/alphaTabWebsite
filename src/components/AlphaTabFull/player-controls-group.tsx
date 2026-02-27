@@ -10,13 +10,18 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
 import environment from "@site/src/environment";
 import { useAlphaTabEvent } from "@site/src/hooks";
-import { openFile, openInputFile } from "@site/src/utils";
+import {
+  setupIOSFileInput,
+  IOS_FILE_INPUT_ID,
+  openInputFile,
+  isIOS,
+} from "@site/src/utils";
 
 export interface PlayerControlsGroupProps {
   api: alphaTab.AlphaTabApi;
   onLayoutChange?: (
     layoutMode: alphaTab.LayoutMode,
-    scrollMode: alphaTab.ScrollMode
+    scrollMode: alphaTab.ScrollMode,
   ) => void;
 }
 
@@ -31,6 +36,15 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   const [isPlaying, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [endTime, setEndTime] = useState(1);
+  const [isIOSApp, setIsIOSApp] = useState(false);
+
+  useEffect(() => {
+    const ios = isIOS();
+    setIsIOSApp(ios);
+    if (ios) {
+      setupIOSFileInput(api);
+    }
+  }, [api]);
 
   useAlphaTabEvent(api, "soundFontLoad", (e) => {
     setSoundFontLoadPercentage(e.loaded / e.total);
@@ -104,16 +118,27 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
       </div>
       <div className={styles["at-player"]}>
         <div className={styles["at-player-left"]}>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              openInputFile(api);
-            }}
-            title="Open File"
-          >
-            <FontAwesomeIcon icon={solid.faFolderOpen} />
-          </a>
+          {isIOSApp ? (
+            <label
+              htmlFor={IOS_FILE_INPUT_ID}
+              title="Open File"
+              role="button"
+              tabIndex={0}
+            >
+              <FontAwesomeIcon icon={solid.faFolderOpen} />
+            </label>
+          ) : (
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                openInputFile(api);
+              }}
+              title="Open File"
+            >
+              <FontAwesomeIcon icon={solid.faFolderOpen} />
+            </a>
+          )}
 
           <a
             href="#"
@@ -220,7 +245,8 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
           <LayoutSelector onLayoutChange={onLayoutChange} />
 
           <div className={styles["at-logo"]}>
-            powered by <img src={environment.withBaseUrl("/img/alphaTab.png")} />
+            powered by{" "}
+            <img src={environment.withBaseUrl("/img/alphaTab.png")} />
           </div>
         </div>
       </div>

@@ -5,7 +5,12 @@ import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
 import { useAlphaTabEvent } from "@site/src/hooks";
-import { openFile, openInputFile } from "@site/src/utils";
+import {
+  isIOS,
+  setupIOSFileInput,
+  IOS_FILE_INPUT_ID,
+  openInputFile,
+} from "@site/src/utils";
 import { PlayerProgressIndicator } from "../AlphaTabFull/player-progress-indicator";
 import { settingsSyncEmitter } from "./settings-sync";
 
@@ -70,7 +75,16 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   const [endTime, setEndTime] = useState(1);
   const [currentTick, setCurrentTick] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(api.playbackSpeed);
+  const [isIOSApp, setIsIOSApp] = useState(false);
   const layoutChangeRef = useRef(false);
+
+  useEffect(() => {
+    const ios = isIOS();
+    setIsIOSApp(ios);
+    if (ios) {
+      setupIOSFileInput(api);
+    }
+  }, [api]);
 
   // Listen for settings changes from the UI (but not from PlayerControls changes)
   useEffect(() => {
@@ -203,17 +217,29 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
       </div>
       <div className={styles["at-player"]}>
         <div className={styles["at-player-left"]}>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              openInputFile(api);
-            }}
-            data-tooltip-id="tooltip-playground"
-            data-tooltip-content="Open File"
-          >
-            <FontAwesomeIcon icon={solid.faFolderOpen} />
-          </button>
+          {isIOSApp ? (
+            <label
+              htmlFor={IOS_FILE_INPUT_ID}
+              data-tooltip-id="tooltip-playground"
+              data-tooltip-content="Open File"
+              role="button"
+              tabIndex={0}
+            >
+              <FontAwesomeIcon icon={solid.faFolderOpen} />
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                openInputFile(api);
+              }}
+              data-tooltip-id="tooltip-playground"
+              data-tooltip-content="Open File"
+            >
+              <FontAwesomeIcon icon={solid.faFolderOpen} />
+            </button>
+          )}
 
           <button
             type="button"
