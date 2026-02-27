@@ -7,11 +7,6 @@ import * as solid from "@fortawesome/free-solid-svg-icons";
 import { useAlphaTabEvent } from "@site/src/hooks";
 import { openFile, openInputFile } from "@site/src/utils";
 import { PlayerProgressIndicator } from "../AlphaTabFull/player-progress-indicator";
-import { addTimingFeedbackMarker } from "./rhythm-game-helpers";
-import {
-  addSuccessMarkersForAllNotes,
-  addSuccessMarkersForMatchedNotes,
-} from "./circle-marker-helpers";
 import { settingsSyncEmitter } from "./settings-sync";
 
 const BPM_DEFAULT = 120; // Fallback if score BPM unavailable
@@ -147,7 +142,9 @@ export const PlayerControlsGroup: React.FC<PlayerControlsGroupProps> = ({
   }, [api, layout]);
 
   useAlphaTabEvent(api, "renderFinished", () => {
-    console.log("finished render");
+    if (process.env.NODE_ENV === "development") {
+      console.log("finished render");
+    }
     if (layoutChangeRef.current) {
       // Reset scroll position for both the alphaTab container and the viewport
       api.container.scrollLeft = 0;

@@ -38,7 +38,7 @@ import {
 } from "./auto-bpm-toast";
 
 const AlphaTabRhythmGameContent: React.FC = () => {
-  const viewPortRef = React.createRef<HTMLDivElement>();
+  const viewPortRef = useRef<HTMLDivElement | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [sidePanel, setSidePanel] = useState(SidePanel.None);
   const [bottomPanels, setBottomPanels] = useState<Set<BottomPanel>>(new Set());
@@ -57,7 +57,7 @@ const AlphaTabRhythmGameContent: React.FC = () => {
     type: MediaType.Synth,
   });
   const youtubePlayer = useRef<HTMLMediaElementLike | null>(null);
-  const { markers, addMarker, clearMarkers } = useCrossMarkers();
+  const { markersRef, drawerRef, addMarker, clearMarkers } = useCrossMarkers();
   const { scoreRef, recordHit, resetScore, getScore } = useRhythmGameScore();
   const { toasts, showToast } = useAutoBpmToast();
   const [isPlaying, setIsPlaying] = useState(false);
@@ -168,17 +168,18 @@ const AlphaTabRhythmGameContent: React.FC = () => {
   const autoBpm = useAutoBpm(api ?? null, showToast);
 
   useAlphaTabEvent(api, "scoreLoaded", (score) => {
-    // Log track information for debugging
-    console.log("Score loaded:", {
-      title: score.title,
-      artist: score.artist,
-      trackCount: score.tracks.length,
-      tracks: score.tracks.map((t, i) => ({
-        index: i,
-        name: t.name,
-        staves: t.staves.length,
-      })),
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.log("Score loaded:", {
+        title: score.title,
+        artist: score.artist,
+        trackCount: score.tracks.length,
+        tracks: score.tracks.map((t, i) => ({
+          index: i,
+          name: t.name,
+          staves: t.staves.length,
+        })),
+      });
+    }
 
     autoBpm.setTrackBpm(score.tempo ?? 120);
 
@@ -429,7 +430,8 @@ const AlphaTabRhythmGameContent: React.FC = () => {
         <CrossMarkersManager
           api={api ?? null}
           element={element}
-          markers={markers}
+          markersRef={markersRef}
+          drawerRef={drawerRef}
         />
 
         <AutoBpmToastContainer toasts={toasts} />

@@ -520,7 +520,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
         let fallbackStartTick = tick;
 
         if (!wrongPos) {
-          const trackIndexes = new Set(tracks.map((t) => t.index));
+          const trackIndexes = caches.allTrackIndexes ?? new Set(tracks.map((t) => t.index));
           const beatResult = api.tickCache.findBeat(trackIndexes, tick);
           if (beatResult) {
             fallbackBeatBounds = api.boundsLookup.findBeat(beatResult.beat);

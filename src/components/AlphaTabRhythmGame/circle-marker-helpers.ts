@@ -23,6 +23,8 @@ export interface GameCaches {
   >;
   /** trackIndex → Set<number> (avoids allocating a new Set on every findBeat call) */
   trackIndexSets: Map<number, Set<number>>;
+  /** Cached set of all visible track indexes (rebuilt by rebuildArticulationMaps) */
+  allTrackIndexes: Set<number> | null;
 }
 
 /** Create an empty `GameCaches` instance. */
@@ -31,15 +33,17 @@ export function createGameCaches(): GameCaches {
     staffLineIndex: new Map(),
     articulationMaps: new Map(),
     trackIndexSets: new Map(),
+    allTrackIndexes: null,
   };
 }
 
-/** (Re-)build the articulation lookup maps for the current tracks. */
+/** (Re-)build the articulation lookup maps and allTrackIndexes for the current tracks. */
 export function rebuildArticulationMaps(
   caches: GameCaches,
   tracks: alphaTab.model.Track[],
 ): void {
   caches.articulationMaps.clear();
+  caches.allTrackIndexes = new Set(tracks.map((t) => t.index));
   for (const track of tracks) {
     if (!track.staves.some((s) => s.isPercussion)) continue;
     const map = new Map<number, alphaTab.model.InstrumentArticulation>();

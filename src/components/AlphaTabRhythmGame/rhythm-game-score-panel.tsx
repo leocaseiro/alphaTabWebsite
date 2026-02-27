@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import styles from "./styles.module.scss";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as solid from "@fortawesome/free-solid-svg-icons";
@@ -17,10 +17,25 @@ export const RhythmGameScorePanel: React.FC<RhythmGameScorePanelProps> = ({
   getScore,
 }) => {
   const [score, setScore] = useState<RhythmGameScore>(() => getScore());
+  const prevSnapshotRef = useRef({ totalNotes: 0, errors: 0, streak: 0 });
 
   useEffect(() => {
     const id = setInterval(() => {
-      setScore(getScore());
+      const next = getScore();
+      const prev = prevSnapshotRef.current;
+      if (
+        next.totalNotes === prev.totalNotes &&
+        next.errors === prev.errors &&
+        next.streak === prev.streak
+      ) {
+        return;
+      }
+      prevSnapshotRef.current = {
+        totalNotes: next.totalNotes,
+        errors: next.errors,
+        streak: next.streak,
+      };
+      setScore(next);
     }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [getScore]);
