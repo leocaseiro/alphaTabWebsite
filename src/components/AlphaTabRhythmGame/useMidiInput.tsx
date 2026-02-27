@@ -112,14 +112,13 @@ export function useMidiInput(
       return;
     }
 
-    // Request MIDI access
-    navigator
-      .requestMIDIAccess({ sysex: false })
-      .then((access) => {
+    // Use two-argument .then(success, error) instead of .then().catch()
+    // because the iOS WebMIDI polyfill's .then() doesn't return a Promise.
+    navigator.requestMIDIAccess({ sysex: false }).then(
+      (access) => {
         midiAccessRef.current = access;
         setupMidiInputs(access);
 
-        // Listen for device connection changes
         access.onstatechange = (event) => {
           const port = event.port as MIDIPort;
           if (process.env.NODE_ENV === "development") {
@@ -131,14 +130,14 @@ export function useMidiInput(
             });
           }
 
-          // Refresh inputs when devices connect/disconnect
           setupMidiInputs(access);
         };
-      })
-      .catch((err) => {
+      },
+      (err) => {
         console.error("Failed to get MIDI access:", err);
         setError("Failed to access MIDI devices. Please check permissions.");
-      });
+      },
+    );
 
     return () => {
       // Cleanup: remove all listeners
