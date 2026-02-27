@@ -9,7 +9,7 @@ This document detailed the features in the MIDI rhythm game.
 - [x] test MusicXML
 - rename to alphatabhero
 - add beta
-- deploy to GH Pages
+  [x] deploy to GH Pages
 - [x] add buttons for
   - [x] loop
   - [x] count in,
@@ -30,7 +30,7 @@ This document detailed the features in the MIDI rhythm game.
 - configuration for GOOD (ms), PERFECT (ms)
 - documentation to use chrome with (GPU, and memory saver)
 - test on Android (tablet)
-- test on iPad (webmidi)
+  [x] test on iPad (webmidi)
 - test on old mac Intel
 - test on old macmini (maybe need another browser)
 - save settings (localstorage or indexedDB)

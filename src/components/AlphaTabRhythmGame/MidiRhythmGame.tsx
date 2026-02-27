@@ -10,15 +10,15 @@ import {
   getMidiNoteNumber,
   getStaffLineIndex,
   getWrongNotePosition,
+  createGameCaches,
+  rebuildArticulationMaps,
+  getTrackIndexSet,
+  type GameCaches,
 } from "./circle-marker-helpers";
 import { useMidiMapping } from "./midi-mapping-context";
 
 const ALPHATAB_PPQ = 960;
 
-/**
- * Info stored for a note that has passed its expected time but may still
- * be hit within the GOOD timing window (sightread "lateNotes" concept).
- */
 interface LateNoteInfo {
   note: alphaTab.model.Note;
   midiNote: number;
@@ -30,10 +30,6 @@ interface LateNoteInfo {
   hitKey: string;
 }
 
-/**
- * Convert a tick difference to wall-clock milliseconds, using the local
- * BPM and the current playback speed.
- */
 function tickDiffToWallMs(
   tickDiff: number,
   bpm: number,
@@ -45,8 +41,6 @@ function tickDiffToWallMs(
 interface MidiRhythmGameProps {
   api: alphaTab.AlphaTabApi | null;
   isPlaying: boolean;
-  currentTick: number;
-  currentTimeMs: number;
   onAddCircleMarker: (
     beatBounds: alphaTab.rendering.BeatBounds,
     staffLineIndex: number,
@@ -75,24 +69,14 @@ interface MidiRhythmGameProps {
 /**
  * MIDI Rhythm Game — sightread-style two-direction scoring algorithm.
  *
- * When a MIDI input arrives:
- *   1. Check late notes (past beats, still within GOOD window)
- *   2. Check current beat notes (on-time or slightly late)
- *   3. Check next beat notes (early hit)
- *   4. No match -> error
- *
- * Timing classification:
- *   - Perfect:    within ±50 ms of the note
- *   - Late Good:  50–300 ms after the note
- *   - Early Good: 50–300 ms before the note
- *   - Missed:     note expired (>300 ms with no input)
- *   - Error:      wrong note / no matching note
+ * PERFORMANCE: All tick-driven logic (beat-change detection, loop detection)
+ * runs inside the `playerPositionChanged` event callback — NOT in React
+ * effects triggered by state.  This eliminates ~60 React re-renders/second
+ * that the old `currentTick` state approach caused.
  */
 export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   api,
   isPlaying,
-  currentTick,
-  currentTimeMs,
   onAddCircleMarker,
   onAddCrossMarker,
   onClearMarkers,
@@ -105,95 +89,64 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
   const { getMapping, isErrorIgnored, isNotationNoteSkipped } =
     useMidiMapping();
 
+  // --- Refs: keep latest prop/context values accessible in callbacks ------
   const apiRef = useRef(api);
   const isPlayingRef = useRef(isPlaying);
-  const currentTickRef = useRef(currentTick);
-  const currentTimeMsRef = useRef(currentTimeMs);
+  const currentTickRef = useRef(0);
+  const currentTimeMsRef = useRef(0);
+  const prevTickRef = useRef(0);
   const onAddCircleMarkerRef = useRef(onAddCircleMarker);
   const onAddCrossMarkerRef = useRef(onAddCrossMarker);
-  const prevTickRef = useRef(currentTick);
+  const onClearMarkersRef = useRef(onClearMarkers);
+  const recordHitRef = useRef(recordHit);
+  const resetScoreRef = useRef(resetScore);
+  const getScoreRef = useRef(getScore);
   const getMappingRef = useRef(getMapping);
   const isErrorIgnoredRef = useRef(isErrorIgnored);
   const isNotationNoteSkippedRef = useRef(isNotationNoteSkipped);
   const autoBpmEnabledRef = useRef(autoBpmEnabled);
   const onLoopCycleCompleteRef = useRef(onLoopCycleComplete);
 
+  // Sync refs — idempotent assignments, safe during render
+  apiRef.current = api;
+  isPlayingRef.current = isPlaying;
+  onAddCircleMarkerRef.current = onAddCircleMarker;
+  onAddCrossMarkerRef.current = onAddCrossMarker;
+  onClearMarkersRef.current = onClearMarkers;
+  recordHitRef.current = recordHit;
+  resetScoreRef.current = resetScore;
+  getScoreRef.current = getScore;
+  getMappingRef.current = getMapping;
+  isErrorIgnoredRef.current = isErrorIgnored;
+  isNotationNoteSkippedRef.current = isNotationNoteSkipped;
+  autoBpmEnabledRef.current = autoBpmEnabled;
+  onLoopCycleCompleteRef.current = onLoopCycleComplete;
+
+  // --- Game state (ref-based, zero React re-renders) ----------------------
   const hitNotesRef = useRef<Set<string>>(new Set());
   const lateNotesRef = useRef<Map<number, LateNoteInfo>>(new Map());
   const lastBeatTickPerTrackRef = useRef<Map<number, number>>(new Map());
 
+  // --- Caches -------------------------------------------------------------
+  const cachesRef = useRef<GameCaches>(createGameCaches());
+
+  // Rebuild articulation maps when API / tracks change
   useEffect(() => {
-    apiRef.current = api;
+    if (!api) return;
+    rebuildArticulationMaps(cachesRef.current, api.tracks);
   }, [api]);
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
-  useEffect(() => {
-    currentTickRef.current = currentTick;
-  }, [currentTick]);
-  useEffect(() => {
-    currentTimeMsRef.current = currentTimeMs;
-  }, [currentTimeMs]);
-  useEffect(() => {
-    onAddCircleMarkerRef.current = onAddCircleMarker;
-  }, [onAddCircleMarker]);
-  useEffect(() => {
-    onAddCrossMarkerRef.current = onAddCrossMarker;
-  }, [onAddCrossMarker]);
-  useEffect(() => {
-    getMappingRef.current = getMapping;
-  }, [getMapping]);
-  useEffect(() => {
-    isErrorIgnoredRef.current = isErrorIgnored;
-  }, [isErrorIgnored]);
-  useEffect(() => {
-    isNotationNoteSkippedRef.current = isNotationNoteSkipped;
-  }, [isNotationNoteSkipped]);
-  useEffect(() => {
-    autoBpmEnabledRef.current = autoBpmEnabled;
-  }, [autoBpmEnabled]);
-  useEffect(() => {
-    onLoopCycleCompleteRef.current = onLoopCycleComplete;
-  }, [onLoopCycleComplete]);
 
-  // Loop detection: tick jumps backward while looping
+  // Clear staff-line cache when the score re-renders (layout may change)
   useEffect(() => {
-    const prevTick = prevTickRef.current;
-    prevTickRef.current = currentTick;
+    if (!api) return;
+    const handler = () => {
+      cachesRef.current.staffLineIndex.clear();
+    };
+    api.renderFinished.on(handler);
+    return () => api.renderFinished.off(handler);
+  }, [api]);
 
-    if (
-      isPlaying &&
-      apiRef.current?.isLooping &&
-      currentTick < prevTick - 960
-    ) {
-      if (autoBpmEnabledRef.current && onLoopCycleCompleteRef.current) {
-        const cycleScore = getScore();
-        onLoopCycleCompleteRef.current(cycleScore);
-        resetScore();
-        if (process.env.NODE_ENV === "development") {
-          console.log("Auto-BPM loop cycle complete", {
-            accuracy: cycleScore.accuracy,
-            prevTick,
-            currentTick,
-          });
-        }
-      } else if (process.env.NODE_ENV === "development") {
-        console.log("Loop detected — clearing markers, keeping score", {
-          prevTick,
-          currentTick,
-          score: getScore(),
-        });
-      }
-      onClearMarkers();
-      hitNotesRef.current.clear();
-      lateNotesRef.current.clear();
-      lastBeatTickPerTrackRef.current.clear();
-    }
-  }, [currentTick, isPlaying, onClearMarkers, getScore, resetScore]);
-
-  /**
-   * Remove late notes that have exceeded GOOD_RANGE — they are truly missed.
-   */
+  // --- clearExpiredLateNotes (reads refs only) ----------------------------
   const clearExpiredLateNotes = useCallback(() => {
     const api = apiRef.current;
     if (!api) return;
@@ -208,84 +161,118 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
 
       if (diffMs > TIMING_WINDOWS.GOOD) {
         toRemove.push(midiNote);
-        recordHit("missed");
+        recordHitRef.current("missed");
       }
     }
 
     for (const key of toRemove) {
       lateNotesRef.current.delete(key);
     }
-  }, [recordHit]);
+  }, []);
 
-  // Beat-change detection: when playback passes a beat boundary, move
-  // unhit notes from the old beat into lateNotes instead of immediately
-  // marking them as missed.
+  // --- playerPositionChanged: all tick-driven logic runs here -------------
   useEffect(() => {
-    if (!isPlaying || !api?.tickCache || !api?.boundsLookup) return;
+    if (!api) return;
 
-    const tracks = api.tracks;
-    if (!tracks || tracks.length === 0) return;
+    const handler = (e: alphaTab.synth.PositionChangedEventArgs) => {
+      const prevTick = currentTickRef.current;
+      currentTickRef.current = e.currentTick;
+      currentTimeMsRef.current = e.currentTime;
 
-    for (const track of tracks) {
-      const beatResult = api.tickCache.findBeat(
-        new Set([track.index]),
-        currentTick,
-      );
-      if (!beatResult) continue;
+      if (!isPlayingRef.current) return;
+      if (!api.tickCache || !api.boundsLookup) return;
 
-      const currentBeatStart = beatResult.start;
-      const lastBeatTick = lastBeatTickPerTrackRef.current.get(track.index);
-      lastBeatTickPerTrackRef.current.set(track.index, currentBeatStart);
-
-      if (lastBeatTick === undefined || lastBeatTick === currentBeatStart)
-        continue;
-
-      // Beat changed — look up the old beat
-      const oldBeatResult = api.tickCache.findBeat(
-        new Set([track.index]),
-        lastBeatTick,
-      );
-      if (!oldBeatResult) continue;
-
-      const oldBeatBounds = api.boundsLookup.findBeat(oldBeatResult.beat);
-      if (!oldBeatBounds) continue;
-
-      let nextBeatBounds: alphaTab.rendering.BeatBounds | undefined;
-      if (oldBeatResult.nextBeat) {
-        nextBeatBounds =
-          api.boundsLookup.findBeat(oldBeatResult.nextBeat.beat) ?? undefined;
+      // Loop detection: tick jumps backward while looping
+      if (api.isLooping && e.currentTick < prevTick - ALPHATAB_PPQ) {
+        if (autoBpmEnabledRef.current && onLoopCycleCompleteRef.current) {
+          const cycleScore = getScoreRef.current();
+          onLoopCycleCompleteRef.current(cycleScore);
+          resetScoreRef.current();
+          if (process.env.NODE_ENV === "development") {
+            console.log("Auto-BPM loop cycle complete", {
+              accuracy: cycleScore.accuracy,
+              prevTick,
+              currentTick: e.currentTick,
+            });
+          }
+        } else if (process.env.NODE_ENV === "development") {
+          console.log("Loop detected — clearing markers, keeping score", {
+            prevTick,
+            currentTick: e.currentTick,
+            score: getScoreRef.current(),
+          });
+        }
+        onClearMarkersRef.current();
+        hitNotesRef.current.clear();
+        lateNotesRef.current.clear();
+        lastBeatTickPerTrackRef.current.clear();
+        return;
       }
 
-      for (const note of oldBeatResult.beat.notes) {
-        const midiNote = getMidiNoteNumber(note);
-        if (isNotationNoteSkippedRef.current(midiNote)) continue;
+      // Beat-change detection
+      const tracks = api.tracks;
+      if (!tracks || tracks.length === 0) return;
 
-        const hitKey = `${track.index}:${oldBeatResult.start}:${midiNote}`;
-        if (hitNotesRef.current.has(hitKey)) continue;
+      const caches = cachesRef.current;
 
-        // If an older late note for this MIDI note exists, it's now missed
-        const existing = lateNotesRef.current.get(midiNote);
-        if (existing) {
-          recordHit("missed");
+      for (const track of tracks) {
+        const trackSet = getTrackIndexSet(caches, track.index);
+        const beatResult = api.tickCache.findBeat(trackSet, e.currentTick);
+        if (!beatResult) continue;
+
+        const currentBeatStart = beatResult.start;
+        const lastBeatTick = lastBeatTickPerTrackRef.current.get(track.index);
+        lastBeatTickPerTrackRef.current.set(track.index, currentBeatStart);
+
+        if (lastBeatTick === undefined || lastBeatTick === currentBeatStart)
+          continue;
+
+        // Beat changed — look up the old beat
+        const oldBeatResult = api.tickCache.findBeat(trackSet, lastBeatTick);
+        if (!oldBeatResult) continue;
+
+        const oldBeatBounds = api.boundsLookup.findBeat(oldBeatResult.beat);
+        if (!oldBeatBounds) continue;
+
+        let nextBeatBounds: alphaTab.rendering.BeatBounds | undefined;
+        if (oldBeatResult.nextBeat) {
+          nextBeatBounds =
+            api.boundsLookup.findBeat(oldBeatResult.nextBeat.beat) ?? undefined;
         }
 
-        lateNotesRef.current.set(midiNote, {
-          note,
-          midiNote,
-          beatBounds: oldBeatBounds,
-          nextBeatBounds,
-          startTick: oldBeatResult.start,
-          bpm: api.score?.tempo ?? 120,
-          trackIndex: track.index,
-          hitKey,
-        });
+        for (const note of oldBeatResult.beat.notes) {
+          const midiNote = getMidiNoteNumber(note);
+          if (isNotationNoteSkippedRef.current(midiNote)) continue;
+
+          const hitKey = `${track.index}:${oldBeatResult.start}:${midiNote}`;
+          if (hitNotesRef.current.has(hitKey)) continue;
+
+          const existing = lateNotesRef.current.get(midiNote);
+          if (existing) {
+            recordHitRef.current("missed");
+          }
+
+          lateNotesRef.current.set(midiNote, {
+            note,
+            midiNote,
+            beatBounds: oldBeatBounds,
+            nextBeatBounds,
+            startTick: oldBeatResult.start,
+            bpm: api.score?.tempo ?? 120,
+            trackIndex: track.index,
+            hitKey,
+          });
+        }
       }
-    }
 
-    clearExpiredLateNotes();
-  }, [currentTick, isPlaying, api, recordHit, clearExpiredLateNotes]);
+      clearExpiredLateNotes();
+    };
 
-  // --- MIDI handler (sightread two-direction algorithm) ---
+    api.playerPositionChanged.on(handler);
+    return () => api.playerPositionChanged.off(handler);
+  }, [api, clearExpiredLateNotes]);
+
+  // --- MIDI handler (sightread two-direction algorithm) -------------------
   const handleMidiMessage = useCallback(
     (event: MidiInputEvent) => {
       if (event.type !== "noteOn") return;
@@ -326,18 +313,19 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
       clearExpiredLateNotes();
 
       if (!api?.tickCache || !api?.boundsLookup) {
-        recordHit("error");
+        recordHitRef.current("error");
         return;
       }
 
       const tracks = api.tracks;
       if (!tracks || tracks.length === 0) {
-        recordHit("error");
+        recordHitRef.current("error");
         return;
       }
 
       const playbackSpeed = api.playbackSpeed;
       const scale = api.settings.display.scale;
+      const caches = cachesRef.current;
 
       // --- Step 1: Check late notes (already passed their beat) ---
       for (const targetNote of targetMidiNotes) {
@@ -351,7 +339,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           const result: HitResult =
             diffMs <= TIMING_WINDOWS.PERFECT ? "perfect" : "lateGood";
 
-          recordHit(result);
+          recordHitRef.current(result);
           hitNotesRef.current.add(lateNote.hitKey);
           lateNotesRef.current.delete(targetNote);
 
@@ -359,6 +347,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
             lateNote.note,
             lateNote.beatBounds,
             scale,
+            caches,
           );
           onAddCircleMarkerRef.current(
             lateNote.beatBounds,
@@ -383,10 +372,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
 
       // --- Step 2: Check current beat notes (on-time / slightly late) ---
       for (const track of tracks) {
-        const beatResult = api.tickCache.findBeat(
-          new Set([track.index]),
-          tick,
-        );
+        const trackSet = getTrackIndexSet(caches, track.index);
+        const beatResult = api.tickCache.findBeat(trackSet, tick);
         if (!beatResult) continue;
 
         const beat = beatResult.beat;
@@ -408,7 +395,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           const result: HitResult =
             diffMs <= TIMING_WINDOWS.PERFECT ? "perfect" : "lateGood";
 
-          recordHit(result);
+          recordHitRef.current(result);
           hitNotesRef.current.add(hitKey);
           lateNotesRef.current.delete(noteMidi);
 
@@ -424,7 +411,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
             const beatDuration = beatResult.end - beatStartTick;
             const timingOffset =
               beatDuration > 0 ? diffTicks / beatDuration : 0;
-            const staffLine = getStaffLineIndex(note, beatBounds, scale);
+            const staffLine = getStaffLineIndex(note, beatBounds, scale, caches);
             onAddCircleMarkerRef.current(
               beatBounds,
               staffLine,
@@ -449,10 +436,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
 
       // --- Step 3: Check next beat notes (early hit) ---
       for (const track of tracks) {
-        const beatResult = api.tickCache.findBeat(
-          new Set([track.index]),
-          tick,
-        );
+        const trackSet = getTrackIndexSet(caches, track.index);
+        const beatResult = api.tickCache.findBeat(trackSet, tick);
         if (!beatResult?.nextBeat) continue;
 
         const nextBeat = beatResult.nextBeat.beat;
@@ -474,12 +459,17 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           const result: HitResult =
             diffMs <= TIMING_WINDOWS.PERFECT ? "perfect" : "earlyGood";
 
-          recordHit(result);
+          recordHitRef.current(result);
           hitNotesRef.current.add(hitKey);
 
           const nextBeatBounds = api.boundsLookup.findBeat(nextBeat);
           if (nextBeatBounds) {
-            const staffLine = getStaffLineIndex(note, nextBeatBounds, scale);
+            const staffLine = getStaffLineIndex(
+              note,
+              nextBeatBounds,
+              scale,
+              caches,
+            );
             onAddCircleMarkerRef.current(
               nextBeatBounds,
               staffLine,
@@ -507,10 +497,8 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
 
       let allExpectedNotesSkipped = false;
       for (const track of tracks) {
-        const beatResult = api.tickCache.findBeat(
-          new Set([track.index]),
-          tick,
-        );
+        const trackSet = getTrackIndexSet(caches, track.index);
+        const beatResult = api.tickCache.findBeat(trackSet, tick);
         if (!beatResult) continue;
         if (
           beatResult.beat.notes.length > 0 &&
@@ -524,7 +512,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
       }
 
       if (!shouldIgnoreError && !allExpectedNotesSkipped) {
-        const wrongPos = getWrongNotePosition(api, tick, event.midiNote);
+        const wrongPos = getWrongNotePosition(api, tick, event.midiNote, caches);
 
         let fallbackBeatBounds: alphaTab.rendering.BeatBounds | null = null;
         let fallbackTimingOffset = 0;
@@ -562,7 +550,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
           );
         }
 
-        recordHit("error");
+        recordHitRef.current("error");
         if (process.env.NODE_ENV === "development") {
           console.log("Wrong note!", { inputNote: event.midiNote });
         }
@@ -575,7 +563,7 @@ export const MidiRhythmGame = React.memo(function MidiRhythmGame({
         );
       }
     },
-    [recordHit, clearExpiredLateNotes],
+    [clearExpiredLateNotes],
   );
 
   const { isSupported, isConnected, inputs, error } = useMidiInput(

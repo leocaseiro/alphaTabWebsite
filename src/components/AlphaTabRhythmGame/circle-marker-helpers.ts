@@ -4,6 +4,69 @@
 
 import * as alphaTab from "@coderline/alphatab";
 
+// ---------------------------------------------------------------------------
+// Caches — shared across the rhythm game to avoid redundant lookups
+// ---------------------------------------------------------------------------
+
+/**
+ * Holds pre-built lookup structures that are expensive to recreate on every
+ * tick or MIDI hit.  Create once with `buildGameCaches` and invalidate parts
+ * as needed (e.g. clear `staffLineIndex` on `renderFinished`).
+ */
+export interface GameCaches {
+  /** midiNote → staffLineIndex (percussion: constant per MIDI note) */
+  staffLineIndex: Map<number, number>;
+  /** trackIndex → (outputMidiNumber → InstrumentArticulation) */
+  articulationMaps: Map<
+    number,
+    Map<number, alphaTab.model.InstrumentArticulation>
+  >;
+  /** trackIndex → Set<number> (avoids allocating a new Set on every findBeat call) */
+  trackIndexSets: Map<number, Set<number>>;
+}
+
+/** Create an empty `GameCaches` instance. */
+export function createGameCaches(): GameCaches {
+  return {
+    staffLineIndex: new Map(),
+    articulationMaps: new Map(),
+    trackIndexSets: new Map(),
+  };
+}
+
+/** (Re-)build the articulation lookup maps for the current tracks. */
+export function rebuildArticulationMaps(
+  caches: GameCaches,
+  tracks: alphaTab.model.Track[],
+): void {
+  caches.articulationMaps.clear();
+  for (const track of tracks) {
+    if (!track.staves.some((s) => s.isPercussion)) continue;
+    const map = new Map<number, alphaTab.model.InstrumentArticulation>();
+    for (const art of track.percussionArticulations) {
+      map.set(art.outputMidiNumber, art);
+    }
+    caches.articulationMaps.set(track.index, map);
+  }
+}
+
+/** Return a cached `Set<number>` for a single track index. */
+export function getTrackIndexSet(
+  caches: GameCaches,
+  trackIndex: number,
+): Set<number> {
+  let set = caches.trackIndexSets.get(trackIndex);
+  if (!set) {
+    set = new Set([trackIndex]);
+    caches.trackIndexSets.set(trackIndex, set);
+  }
+  return set;
+}
+
+// ---------------------------------------------------------------------------
+// MIDI note helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Get the actual MIDI note number for a note.
  *
@@ -26,17 +89,31 @@ export function getMidiNoteNumber(note: alphaTab.model.Note): number {
   return note.realValue;
 }
 
+// ---------------------------------------------------------------------------
+// Staff-line position helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Derive the correct staffLineIndex for a note from its rendered noteHeadBounds.
- * This is needed for percussion where note.string is -1 (not a guitar string).
- * Reverses the formula: y = staffTopY + staffLineIndex * lineSpacing + lineSpacing / 2
+ * Results are cached per MIDI note in `caches.staffLineIndex` when provided;
+ * for percussion the staff line is constant so the cache is always valid until
+ * the score is re-rendered.
  */
 export function getStaffLineIndex(
   note: alphaTab.model.Note,
   beatBounds: alphaTab.rendering.BeatBounds,
   scale: number,
+  caches?: GameCaches,
 ): number {
-  // Try to derive from noteHeadBounds (works for all instrument types)
+  const midiNote = getMidiNoteNumber(note);
+
+  if (caches) {
+    const cached = caches.staffLineIndex.get(midiNote);
+    if (cached !== undefined) return cached;
+  }
+
+  let result: number;
+
   if (beatBounds.notes && beatBounds.notes.length > 0) {
     const noteBounds = beatBounds.notes.find((nb) => nb.note === note);
     if (noteBounds && noteBounds.noteHeadBounds) {
@@ -44,33 +121,35 @@ export function getStaffLineIndex(
       const staffTopY = beatBounds.barBounds.visualBounds.y;
       const noteY =
         noteBounds.noteHeadBounds.y + noteBounds.noteHeadBounds.h / 2;
-      return Math.round(
+      result = Math.round(
         (noteY - staffTopY - lineSpacing / 2) / lineSpacing,
       );
+    } else {
+      result = Math.max(0, note.string - 1);
     }
+  } else {
+    result = Math.max(0, note.string - 1);
   }
 
-  // Fallback for non-percussion (guitar/piano)
-  return Math.max(0, note.string - 1);
+  if (caches) {
+    caches.staffLineIndex.set(midiNote, result);
+  }
+
+  return result;
 }
 
 /**
  * Compute the staffLineIndex for an arbitrary MIDI note that may not be in the
  * current score (used for wrong-input cross markers).
  *
- * For percussion: looks up the InstrumentArticulation by outputMidiNumber and
- * uses its staffLine property. If there is a rendered note on the same beat we
- * calibrate against it for pixel-perfect accuracy; otherwise we use the
- * approximation staffLineIndex ≈ (staffLine + 1) / 2.
- *
- * Returns the staffLineIndex AND the correct beatBounds/timing for the
- * matching track (so the cross is drawn on the right staff in multi-track
- * scores).
+ * For percussion: uses the cached articulation map (O(1) lookup) and cached
+ * staff-line index when available.
  */
 export function getWrongNotePosition(
   api: alphaTab.AlphaTabApi,
   currentTick: number,
   midiNote: number,
+  caches?: GameCaches,
 ): {
   beatBounds: alphaTab.rendering.BeatBounds;
   staffLineIndex: number;
@@ -90,17 +169,22 @@ export function getWrongNotePosition(
     const isPercussion = track.staves.some((s) => s.isPercussion);
 
     if (isPercussion) {
-      // Find the articulation whose outputMidiNumber matches the player's MIDI input
-      const articulation = track.percussionArticulations.find(
-        (a) => a.outputMidiNumber === midiNote,
-      );
+      // O(1) articulation lookup via cache, falling back to linear scan
+      let articulation: alphaTab.model.InstrumentArticulation | undefined;
+      const artMap = caches?.articulationMaps.get(track.index);
+      if (artMap) {
+        articulation = artMap.get(midiNote);
+      } else {
+        articulation = track.percussionArticulations.find(
+          (a) => a.outputMidiNumber === midiNote,
+        );
+      }
       if (!articulation) continue;
 
-      // Get beat bounds for THIS track at the current tick
-      const beatResult = api.tickCache.findBeat(
-        new Set([track.index]),
-        currentTick,
-      );
+      const trackSet = caches
+        ? getTrackIndexSet(caches, track.index)
+        : new Set([track.index]);
+      const beatResult = api.tickCache.findBeat(trackSet, currentTick);
       if (!beatResult) continue;
 
       const beatBounds = api.boundsLookup.findBeat(beatResult.beat);
@@ -117,8 +201,21 @@ export function getWrongNotePosition(
           api.boundsLookup.findBeat(beatResult.nextBeat.beat) ?? undefined;
       }
 
-      // Compute staffLineIndex for the wrong note.
-      // Try to calibrate using any existing rendered note on the same beat.
+      // Check the staff-line cache first
+      if (caches) {
+        const cached = caches.staffLineIndex.get(midiNote);
+        if (cached !== undefined) {
+          return {
+            beatBounds,
+            staffLineIndex: cached,
+            startTick,
+            timingOffset,
+            nextBeatBounds,
+          };
+        }
+      }
+
+      // Compute staffLineIndex — calibrate against a rendered reference note
       const wrongStaffLine = articulation.staffLine;
       let staffLineIndex: number | null = null;
 
@@ -128,14 +225,12 @@ export function getWrongNotePosition(
             const refArt =
               track.percussionArticulations[nb.note.percussionArticulation];
             if (refArt) {
-              // We know refArt.staffLine → refStaffLineIndex from rendered coords
               const staffTopY = beatBounds.barBounds.visualBounds.y;
               const refNoteY =
                 nb.noteHeadBounds.y + nb.noteHeadBounds.h / 2;
               const refStaffLineIndex =
                 (refNoteY - staffTopY - lineSpacing / 2) / lineSpacing;
 
-              // Offset from the reference note
               staffLineIndex =
                 refStaffLineIndex +
                 (wrongStaffLine - refArt.staffLine) / 2;
@@ -145,20 +240,24 @@ export function getWrongNotePosition(
         }
       }
 
-      // Fallback: approximate formula
       if (staffLineIndex === null) {
         staffLineIndex = (wrongStaffLine + 1) / 2;
       }
 
+      const snapped = Math.round(staffLineIndex * 2) / 2;
+
+      if (caches) {
+        caches.staffLineIndex.set(midiNote, snapped);
+      }
+
       return {
         beatBounds,
-        staffLineIndex: Math.round(staffLineIndex * 2) / 2, // snap to half-lines
+        staffLineIndex: snapped,
         startTick,
         timingOffset,
         nextBeatBounds,
       };
     }
-    // Non-percussion: for now use middle of staff; can be refined for piano later
   }
 
   return null;
