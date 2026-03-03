@@ -28,16 +28,19 @@ This document detailed the features in the MIDI rhythm game.
   [x] good notes display in blue, early (orange) and purple (late)
 - shortcuts (play, pause, restart, etc)
 - configuration for GOOD (ms), PERFECT (ms)
+- configuration for latency (Especially noticeable on Android tablets)
+- support select loop on mobile (touchscreen is not very easy to select in the UI atm)
+- support count-in for Media Sync (might be worth to fix in alphatab https://github.com/CoderLine/alphaTab/issues/2397)
 - documentation to use chrome with (GPU, and memory saver)
-- test on Android (tablet)
-  [x] test on iPad (webmidi)
+- test on Android (tablet) - partially working, with some latency audio + UI (need to detect if issue is within our Midi or alphatab on its own)
+  [x] test on iPad (webmidi): working fine actually / some minor latency
 - test on old mac Intel
-- test on old macmini (maybe need another browser)
+- test on old macmini (maybe need another browser): Couldn't get to work at all =/
 - save settings (localstorage or indexedDB)
-- memory (draw blank on top of the score, and only display the notation on errors)
-- preload drawing positions
+- memory (draw blank on top of the score, and only display the notation on errors): improve performance
+- preload drawing positions (already vibe-coded, needs review)
 - pre check missing map midis (analyse song)
-- select what track to match
+- select what track to match (save last one, try to always go to drum)
 - warning when multiple midi devices are connected
 - detect repeats, and warning
 - test on Windows
@@ -48,16 +51,17 @@ This document detailed the features in the MIDI rhythm game.
 - add analytics
 - improve game with media sync (audio/youtube). Control synth or BackingTrack
 - cursor style
-- repeat from settings (start - finish)
-- separate early from late on good
+- repeat from settings (start - finish): mobile friendly
+  [x] separate early from late on good
 - improve early / late / missed detection
-- ignore error drawings (e.g. pedal hihat)
-- ignore error score (e.g. pedal hihat), or learning song by pad
-- set colors for perfect, good, error
-- set colors for early, late
+  [x] ignore error drawings (e.g. pedal hihat)
+  [x] ignore error score (e.g. pedal hihat), or learning song by pad
+- custom set colors for perfect, good, error
+- custom set colors for early, late
 - display gray for missed
 - chrome warning for latency, power mode, etc
-- save uploaded songs
+- save uploaded songs (for next time usage, similar midiano and/sightread)
+  - folder uploads are great, but won't work in iOS Webmidi SHIM
 - save score
   - whole song in detail
   - whole song score
@@ -70,8 +74,11 @@ This document detailed the features in the MIDI rhythm game.
 - integrate sync to Google Drive, Dropbox? (avoid paid)
 - import from groovescribe
 - import from drum \*.midi
-- ghost notes (detect)
-- display dynamics chart
+- ghost notes
+  - detect ghost notes
+  - custom set threshold for dynamic as ghost
+  - toggle option to influence dynamics in score
+- display dynamics chart (simialar to Roland DT-1 Drum Tutor)
 - use electron, tauri or similar
 - iOS app (webmidi https://github.com/mizuhiki/WebMIDIAPIShimForiOS)
 - errors analyse (tooltip why missed, error, and display on hover)
@@ -100,5 +107,5 @@ This document detailed the features in the MIDI rhythm game.
   - drums rhythm games (gitadora, beatmania)
 - publish on alternate.to and similars
 - create a discord
-- dark mode
-- UI with drum hihglighted on guide notes, and feedback play
+  [x] dark mode
+- UI with drum hihglighted on guide notes, and feedback play (a drumkit in SVG)
