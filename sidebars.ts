@@ -167,6 +167,7 @@ const sidebars: SidebarsConfig = {
         "showcase/introduction",
         "showcase/general",
         "showcase/layouts",
+        "showcase/partial-bars",
         "showcase/music-notation",
         "showcase/guitar-tabs",
         "showcase/special-tracks",

@@ -1,0 +1,34 @@
+---
+title: Partial Bar Rendering
+---
+
+import { BarRangeDemo } from '@site/src/components/BarRangeDemo';
+
+alphaTab can re-render a score so that **only a chosen bar range is visible**. Bars outside the range are not drawn at all — this is different from the playback selection overlay, which keeps the full score on screen.
+
+This demo loads [Canon in D](/files/canon-full.gp) and defaults to **bars 40–51**. Change the range and click **Re-render range** to update the display.
+
+<BarRangeDemo />
+
+## How it works
+
+Use `display.startBar` (1-based, as printed on the sheet) and `display.barCount`, then call `render()`:
+
+```js
+api.settings.display.startBar = 40;
+api.settings.display.barCount = 12; // bars 40–51
+api.render();
+```
+
+Playback is separate: the player still knows about the full score unless you also set `playbackRange` via the tick cache. The demo above optionally limits playback to the same window.
+
+## alphaTex vs display settings
+
+Converting Guitar Pro to alphaTex and keeping only bars 40–51 is **possible but usually worse** for this use case:
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **`display.startBar` + `display.barCount`** | Fast re-render, full GP model intact, all importer features preserved | Full score stays in memory |
+| **Export slice to alphaTex** | Human-readable, easy to edit | Round-trip can lose GP-specific layout, RSE/backing-track data, and some notation details; extra import step |
+
+For “show only these bars of this `.gp` file”, stick with display settings. alphaTex is better when you **author** content in text or need programmatic editing of the notation itself.
