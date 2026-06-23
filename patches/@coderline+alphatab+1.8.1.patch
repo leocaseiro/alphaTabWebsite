@@ -1,0 +1,72 @@
+diff --git a/node_modules/@coderline/alphatab/dist/alphaTab.core.mjs b/node_modules/@coderline/alphatab/dist/alphaTab.core.mjs
+index 4b08efc..f4fe68a 100644
+--- a/node_modules/@coderline/alphatab/dist/alphaTab.core.mjs
++++ b/node_modules/@coderline/alphatab/dist/alphaTab.core.mjs
+@@ -5808,7 +5808,7 @@ class Note {
+      */
+     tone = -1;
+     get isPercussion() {
+-        return !this.isStringed && this.percussionArticulation >= 0;
++        return this.percussionArticulation >= 0;
+     }
+     /**
+      * Gets or sets the percusson element.
+@@ -12811,8 +12811,6 @@ class Staff {
+     }
+     finish(settings, sharedDataBag = null) {
+         if (this.isPercussion) {
+-            this.stringTuning.tunings = [];
+-            this.showTablature = false;
+             this.displayTranspositionPitch = 0;
+         }
+         this.stringTuning.finish();
+@@ -22496,9 +22494,7 @@ class GpifParser {
+                             break;
+                     }
+                 }
+-                if (!staff.isPercussion) {
+-                    staff.showTablature = true;
+-                }
++                staff.showTablature = true;
+                 break;
+             case 'DiagramCollection':
+             case 'ChordCollection':
+@@ -24161,14 +24157,13 @@ class GpifParser {
+                                                 for (const noteId of this._notesOfBeat.get(beatId)) {
+                                                     if (noteId !== GpifParser._invalidId) {
+                                                         const note = NoteCloner.clone(this._noteById.get(noteId));
+-                                                        // reset midi value for non-percussion staves
+-                                                        if (staff.isPercussion) {
+-                                                            note.fret = -1;
+-                                                            note.string = -1;
+-                                                        }
+-                                                        else {
++                                                        if (!staff.isPercussion) {
+                                                             note.percussionArticulation = -1;
+                                                         }
++                                                        else if (note.string > 5) {
++                                                            // Drum notation uses 5 lines; string 6+ won't render
++                                                            note.string = 5;
++                                                        }
+                                                         beat.addNote(note);
+                                                         if (this._tappedNotes.has(noteId)) {
+                                                             beat.tap = true;
+@@ -24336,9 +24331,7 @@ class PartConfiguration {
+                 if (trackIndex < score.tracks.length) {
+                     const track = score.tracks[trackIndex];
+                     for (const staff of track.staves) {
+-                        if (!staff.isPercussion) {
+-                            staff.showTablature = trackConfig.showTablature;
+-                        }
++                        staff.showTablature = trackConfig.showTablature;
+                         staff.showStandardNotation = trackConfig.showStandardNotation;
+                         staff.showSlash = trackConfig.showSlash;
+                         staff.showNumbered = trackConfig.showNumbered;
+@@ -75473,7 +75466,6 @@ class TabBarRendererFactory extends BarRendererFactory {
+     }
+     constructor(effectBands) {
+         super(effectBands);
+-        this.hideOnPercussionTrack = true;
+     }
+     canCreate(track, staff) {
+         return staff.showTablature && staff.tuning.length > 0 && super.canCreate(track, staff);

@@ -15,7 +15,8 @@
     "typecheck": "tsc",
     "generate-alphatabdoc": "tsx scripts/generate-alphatabdoc.mts",
     "generate-alphatabdoc-empty": "tsx scripts/generate-alphatabdoc.mts --empty",
-    "deploy-gh": "USE_SSH=true docusaurus deploy"
+    "deploy-gh": "USE_SSH=true docusaurus deploy",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@coderline/alphatab": "^1.8.1",
@@ -50,6 +51,7 @@
     "babel-plugin-macros": "^3.1.0",
     "copy-webpack-plugin": "^12.0.2",
     "docusaurus-plugin-sass": "^0.2.6",
+    "patch-package": "^8.0.1",
     "playwright": "^1.58.2",
     "prettier": "^3.5.3",
     "remark-github-admonitions-to-directives": "^2.1.0",
