@@ -28,4 +28,5 @@
     "peacock.color": "#215732",
     "editor.snippetSuggestions": "bottom",
     "emmet.showSuggestionsAsSnippets": true,
+    "specstory.cloudSync.enabled": "never",
 }

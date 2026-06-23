@@ -1,0 +1,721 @@
+---
+title: Customizing Light and Dark Mode
+---
+
+# Customizing Light and Dark Mode
+
+alphaTab has three different styling layers. Treating them as one thing is the main source of confusion when building a dark theme.
+
+1. **Renderer resources** control the default colors and fonts used by the music sheet.
+2. **Data model styles** color individual score, track, bar, voice, beat, and note elements.
+3. **CSS** styles the browser-only playback overlays and any player UI you build around alphaTab.
+
+The alphaTabWebsite uses all three. It sets site-wide defaults in `src/environment.ts`, exposes many rendering settings in the playground settings panel, colors individual notes in `src/components/ColoringExample/index.tsx`, and styles playback overlays in `src/css/custom.scss` plus `src/components/AlphaTabFull/styles.module.scss`.
+
+## What alphaTabWebsite Does Today
+
+The website sets the font directory, SoundFont, default player mode, scroll mode, and notation fonts before every `AlphaTabApi` instance is created.
+
+```ts
+settings.core.fontDirectory = "/font/";
+settings.player.soundFont = "/soundfont/sonivox.sf3";
+settings.player.scrollMode = alphaTab.ScrollMode.Off;
+settings.player.playerMode = alphaTab.PlayerMode.Disabled;
+
+settings.display.resources.titleFont.families = ["Noto Serif"];
+settings.display.resources.tablatureFont.families = ["Noto Sans"];
+settings.display.resources.numberedNotationFont.families = ["Noto Sans"];
+```
+
+The Docusaurus shell has light and dark color variables, but the switch is disabled in `docusaurus.config.ts`.
+
+```ts
+themeConfig: {
+  colorMode: {
+    disableSwitch: true,
+  },
+}
+```
+
+That means the website defines a dark Docusaurus palette, but does not expose a normal user-facing dark-mode toggle. Also, alphaTab's rendered sheet does not automatically inherit the Docusaurus color variables. You must push theme colors into `settings.display.resources`, into model `style.colors`, or into CSS classes.
+
+## Layer 1: Renderer Resources
+
+Renderer resources are the first place to customize light and dark mode. These affect the default music sheet rendering before you start targeting individual notes.
+
+The playground exposes these color settings:
+
+| Setting path | What it changes |
+| --- | --- |
+| `display.resources.staffLineColor` | Staff lines |
+| `display.resources.barSeparatorColor` | System and bar separators |
+| `display.resources.barNumberColor` | Bar numbers |
+| `display.resources.mainGlyphColor` | Main notation glyphs |
+| `display.resources.secondaryGlyphColor` | Secondary notation glyphs |
+| `display.resources.scoreInfoColor` | Title, artist, album, copyright, and other score info text |
+
+Example light/dark resource palette:
+
+```ts
+import * as alphaTab from "@coderline/alphatab";
+
+type AlphaTabTheme = {
+  sheetBackground: string;
+  staffLine: string;
+  barSeparator: string;
+  barNumber: string;
+  mainGlyph: string;
+  secondaryGlyph: string;
+  scoreInfo: string;
+};
+
+const alphaTabThemes: Record<"light" | "dark", AlphaTabTheme> = {
+  light: {
+    sheetBackground: "#ffffff",
+    staffLine: "#979797",
+    barSeparator: "#555555",
+    barNumber: "#b42f2f",
+    mainGlyph: "#111111",
+    secondaryGlyph: "#555555",
+    scoreInfo: "#222222",
+  },
+  dark: {
+    sheetBackground: "#111318",
+    staffLine: "#59606b",
+    barSeparator: "#8a94a6",
+    barNumber: "#f2b56b",
+    mainGlyph: "#f3f5f7",
+    secondaryGlyph: "#b7beca",
+    scoreInfo: "#e7ecf3",
+  },
+};
+
+function applyAlphaTabTheme(api: alphaTab.AlphaTabApi, mode: "light" | "dark") {
+  const theme = alphaTabThemes[mode];
+  const resources = api.settings.display.resources;
+
+  resources.staffLineColor = alphaTab.model.Color.fromJson(theme.staffLine);
+  resources.barSeparatorColor = alphaTab.model.Color.fromJson(theme.barSeparator);
+  resources.barNumberColor = alphaTab.model.Color.fromJson(theme.barNumber);
+  resources.mainGlyphColor = alphaTab.model.Color.fromJson(theme.mainGlyph);
+  resources.secondaryGlyphColor = alphaTab.model.Color.fromJson(theme.secondaryGlyph);
+  resources.scoreInfoColor = alphaTab.model.Color.fromJson(theme.scoreInfo);
+
+  api.updateSettings();
+  api.render();
+}
+```
+
+You still need CSS for the container background:
+
+```css
+.alphaTabSurface {
+  background: var(--at-sheet-bg);
+}
+
+[data-theme="light"] .alphaTabSurface {
+  --at-sheet-bg: #ffffff;
+}
+
+[data-theme="dark"] .alphaTabSurface {
+  --at-sheet-bg: #111318;
+}
+```
+
+### Fonts
+
+The website sets these font families in `src/environment.ts`, and the playground exposes most of them:
+
+| Setting path | Website default family |
+| --- | --- |
+| `display.resources.copyrightFont` | `Noto Sans` |
+| `display.resources.titleFont` | `Noto Serif` |
+| `display.resources.subTitleFont` | `Noto Serif` |
+| `display.resources.wordsFont` | `Noto Serif` |
+| `display.resources.effectFont` | `Noto Serif` |
+| `display.resources.timerFont` | `Noto Serif` |
+| `display.resources.directionsFont` | `Noto Serif` |
+| `display.resources.fretboardNumberFont` | `Noto Sans` |
+| `display.resources.numberedNotationFont` | `Noto Sans` |
+| `display.resources.numberedNotationGraceFont` | `Noto Sans` |
+| `display.resources.tablatureFont` | `Noto Sans` |
+| `display.resources.graceFont` | `Noto Sans` |
+| `display.resources.barNumberFont` | `Noto Sans` |
+| `display.resources.fingeringFont` | `Noto Serif` |
+| `display.resources.inlineFingeringFont` | `Noto Serif` |
+| `display.resources.markerFont` | `Noto Serif` |
+
+Use `alphaTab.model.Font.fromJson(...)` or mutate the font object directly:
+
+```ts
+api.settings.display.resources.titleFont =
+  alphaTab.model.Font.fromJson("bold 28px 'Noto Serif'");
+
+api.settings.display.resources.tablatureFont.families = ["Noto Sans"];
+
+api.updateSettings();
+api.render();
+```
+
+## Layer 2: Data Model Styles
+
+Model styles are for targeted color decisions. The website's `ColoringExample` sets a `ScoreStyle`, `BeatStyle`, and `NoteStyle`, then calls `renderScore`.
+
+```ts
+score.style = new alphaTab.model.ScoreStyle();
+score.style.colors.set(
+  alphaTab.model.ScoreSubElement.Title,
+  alphaTab.model.Color.fromJson("#426d9d")
+);
+
+note.style = new alphaTab.model.NoteStyle();
+note.style.colors.set(
+  alphaTab.model.NoteSubElement.GuitarTabFretNumber,
+  alphaTab.model.Color.fromJson("#70ccd6")
+);
+```
+
+Use this when a color depends on score data, such as fret number, string, track, note duration, difficulty, or validation state.
+
+### Important Runtime Rule
+
+alphaTab does not watch the data model for style changes. If you mutate `score.style`, `track.style`, `bar.style`, `voice.style`, `beat.style`, or `note.style` after rendering, call `api.render()`.
+
+```ts
+api.scoreLoaded.on(score => {
+  applyModelColors(score, "dark");
+});
+
+function switchAlphaTabMode(api: alphaTab.AlphaTabApi, mode: "light" | "dark") {
+  applyModelColors(api.score!, mode);
+  applyAlphaTabTheme(api, mode);
+  api.render();
+}
+```
+
+### Styleable Score Elements
+
+Initialize with `score.style = new alphaTab.model.ScoreStyle()`.
+
+| Element | What it colors |
+| --- | --- |
+| `ScoreSubElement.Title` | Song title |
+| `ScoreSubElement.SubTitle` | Song subtitle |
+| `ScoreSubElement.Artist` | Artist |
+| `ScoreSubElement.Album` | Album |
+| `ScoreSubElement.Words` | Word author |
+| `ScoreSubElement.Music` | Music author |
+| `ScoreSubElement.WordsAndMusic` | Words and music author |
+| `ScoreSubElement.Transcriber` | Transcriber |
+| `ScoreSubElement.Copyright` | Copyright line |
+| `ScoreSubElement.CopyrightSecondLine` | Second copyright line |
+| `ScoreSubElement.ChordDiagramList` | Chord diagram list above the score |
+
+### Styleable Track Elements
+
+Initialize with `track.style = new alphaTab.model.TrackStyle()`.
+
+| Element | What it colors |
+| --- | --- |
+| `TrackSubElement.TrackName` | Track names shown before staves |
+| `TrackSubElement.BracesAndBrackets` | Braces and brackets grouping staves. If a bracket spans tracks, the first track color wins. |
+| `TrackSubElement.SystemSeparator` | System separator |
+| `TrackSubElement.StringTuning` | String tuning text |
+
+### Styleable Bar Elements
+
+Initialize with `bar.style = new alphaTab.model.BarStyle()`.
+
+| Element | What it colors |
+| --- | --- |
+| `BarSubElement.StandardNotationRepeats` | Repeat signs on standard notation |
+| `BarSubElement.GuitarTabsRepeats` | Repeat signs on guitar tabs |
+| `BarSubElement.SlashRepeats` | Repeat signs on slash notation |
+| `BarSubElement.NumberedRepeats` | Repeat signs on numbered notation |
+| `BarSubElement.StandardNotationBarNumber` | Standard notation bar numbers |
+| `BarSubElement.GuitarTabsBarNumber` | Guitar tab bar numbers |
+| `BarSubElement.SlashBarNumber` | Slash notation bar numbers |
+| `BarSubElement.NumberedBarNumber` | Numbered notation bar numbers |
+| `BarSubElement.StandardNotationBarLines` | Standard notation bar lines |
+| `BarSubElement.GuitarTabsBarLines` | Guitar tab bar lines |
+| `BarSubElement.SlashBarLines` | Slash notation bar lines |
+| `BarSubElement.NumberedBarLines` | Numbered notation bar lines |
+| `BarSubElement.StandardNotationClef` | Standard notation clefs |
+| `BarSubElement.GuitarTabsClef` | Guitar tab clefs |
+| `BarSubElement.StandardNotationKeySignature` | Standard notation key signatures |
+| `BarSubElement.NumberedKeySignature` | Numbered notation key signatures |
+| `BarSubElement.StandardNotationTimeSignature` | Standard notation time signatures |
+| `BarSubElement.GuitarTabsTimeSignature` | Guitar tab time signatures |
+| `BarSubElement.SlashTimeSignature` | Slash notation time signatures |
+| `BarSubElement.NumberedTimeSignature` | Numbered notation time signatures |
+| `BarSubElement.StandardNotationStaffLine` | Standard notation staff lines |
+| `BarSubElement.GuitarTabsStaffLine` | Guitar tab staff lines |
+| `BarSubElement.SlashStaffLine` | Slash notation staff lines |
+| `BarSubElement.NumberedStaffLine` | Numbered notation staff lines |
+
+### Styleable Voice Elements
+
+Initialize with `voice.style = new alphaTab.model.VoiceStyle()`.
+
+| Element | What it colors |
+| --- | --- |
+| `VoiceSubElement.Glyphs` | General glyphs such as note heads and rests |
+
+### Styleable Beat Elements
+
+Initialize with `beat.style = new alphaTab.model.BeatStyle()`.
+
+| Element | What it colors |
+| --- | --- |
+| `BeatSubElement.Effects` | Beat-level effects and annotations in effect bands |
+| `BeatSubElement.StandardNotationStem` | Standard notation stems |
+| `BeatSubElement.StandardNotationFlags` | Standard notation flags |
+| `BeatSubElement.StandardNotationBeams` | Standard notation beams |
+| `BeatSubElement.StandardNotationTuplet` | Standard notation tuplets |
+| `BeatSubElement.StandardNotationEffects` | Standard notation beat-level effects |
+| `BeatSubElement.StandardNotationRests` | Standard notation rests |
+| `BeatSubElement.GuitarTabStem` | Guitar tab stems |
+| `BeatSubElement.GuitarTabFlags` | Guitar tab flags |
+| `BeatSubElement.GuitarTabBeams` | Guitar tab beams |
+| `BeatSubElement.GuitarTabTuplet` | Guitar tab tuplets |
+| `BeatSubElement.GuitarTabEffects` | Guitar tab beat-level effects |
+| `BeatSubElement.GuitarTabRests` | Guitar tab rests |
+| `BeatSubElement.SlashStem` | Slash notation stems |
+| `BeatSubElement.SlashFlags` | Slash notation flags |
+| `BeatSubElement.SlashBeams` | Slash notation beams |
+| `BeatSubElement.SlashTuplet` | Slash notation tuplets |
+| `BeatSubElement.SlashRests` | Slash notation rests |
+| `BeatSubElement.SlashEffects` | Slash notation beat-level effects |
+| `BeatSubElement.NumberedDuration` | Numbered notation duration lines |
+| `BeatSubElement.NumberedEffects` | Numbered notation beat-level effects |
+| `BeatSubElement.NumberedRests` | Numbered notation rests |
+| `BeatSubElement.NumberedTuplet` | Numbered notation tuplets |
+
+### Styleable Note Elements
+
+Initialize with `note.style = new alphaTab.model.NoteStyle()`.
+
+| Element | What it colors |
+| --- | --- |
+| `NoteSubElement.Effects` | Note-level effects and annotations in effect bands. The first note with the effect wins. |
+| `NoteSubElement.StandardNotationNoteHead` | Standard notation note head |
+| `NoteSubElement.StandardNotationAccidentals` | Standard notation accidentals |
+| `NoteSubElement.StandardNotationEffects` | Standard notation note-level effects |
+| `NoteSubElement.GuitarTabFretNumber` | Guitar tab fret number |
+| `NoteSubElement.GuitarTabEffects` | Guitar tab note-level effects |
+| `NoteSubElement.SlashNoteHead` | Slash notation note head |
+| `NoteSubElement.SlashEffects` | Slash notation note-level effects |
+| `NoteSubElement.NumberedNumber` | Numbered notation note number |
+| `NoteSubElement.NumberedAccidentals` | Numbered notation accidentals |
+| `NoteSubElement.NumberedEffects` | Numbered notation note-level effects |
+
+### Theme-Aware Model Coloring
+
+```ts
+const fretPalettes = {
+  light: {
+    12: "#bb4648",
+    13: "#ab519f",
+    14: "#3953a5",
+    15: "#007a8a",
+    16: "#3d7c23",
+    17: "#9a6c00",
+  },
+  dark: {
+    12: "#ff7b7d",
+    13: "#f39be8",
+    14: "#93a4ff",
+    15: "#70ccd6",
+    16: "#98e06d",
+    17: "#ffd166",
+  },
+} as const;
+
+function applyModelColors(score: alphaTab.model.Score, mode: "light" | "dark") {
+  score.style = new alphaTab.model.ScoreStyle();
+  score.style.colors.set(
+    alphaTab.model.ScoreSubElement.Title,
+    alphaTab.model.Color.fromJson(mode === "dark" ? "#d0e3fa" : "#426d9d")
+  );
+
+  for (const track of score.tracks) {
+    for (const staff of track.staves) {
+      for (const bar of staff.bars) {
+        for (const voice of bar.voices) {
+          for (const beat of voice.beats) {
+            for (const note of beat.notes) {
+              const color = fretPalettes[mode][note.fret as keyof typeof fretPalettes.light];
+              if (!color) {
+                continue;
+              }
+
+              note.style = new alphaTab.model.NoteStyle();
+              note.style.colors.set(
+                alphaTab.model.NoteSubElement.StandardNotationNoteHead,
+                alphaTab.model.Color.fromJson(color)
+              );
+              note.style.colors.set(
+                alphaTab.model.NoteSubElement.GuitarTabFretNumber,
+                alphaTab.model.Color.fromJson(color)
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Layer 3: Player CSS
+
+alphaTab creates a few browser DOM elements for playback and selection. These are controlled with CSS, not with `settings.display.resources`.
+
+The website defines these rules globally in `src/css/custom.scss` and again for the full homepage player in `src/components/AlphaTabFull/styles.module.scss`.
+
+### Selection
+
+```css
+.at-selection div {
+  background: rgba(64, 64, 255, 0.1);
+}
+```
+
+![Selection](/img/guides/styling/at-selection.png)
+
+### Played Bar Cursor
+
+```css
+.at-cursor-bar {
+  background: rgba(255, 242, 0, 0.25);
+}
+```
+
+![Bar Cursor](/img/guides/styling/at-cursor-bar.png)
+
+### Beat Cursor
+
+```css
+.at-cursor-beat {
+  background: rgba(64, 64, 255, 0.75);
+  width: 3px;
+}
+```
+
+![Beat Cursor](/img/guides/styling/at-cursor-beat.png)
+
+### Highlighted Played Elements
+
+This only applies when alphaTab renders SVG in the browser. The website's playground forces SVG with `s.core.engine = "svg"`.
+
+```css
+.at-highlight * {
+  fill: #0078ff;
+  stroke: #0078ff;
+}
+```
+
+![Played Elements](/img/guides/styling/at-highlight.png)
+
+### Light/Dark CSS Version
+
+Use CSS variables so the classes adapt automatically:
+
+```css
+.alphaTabPlayer {
+  --at-selection-bg: rgba(64, 64, 255, 0.1);
+  --at-cursor-bar-bg: rgba(255, 242, 0, 0.25);
+  --at-cursor-beat-bg: rgba(64, 64, 255, 0.75);
+  --at-highlight: #0078ff;
+}
+
+[data-theme="dark"] .alphaTabPlayer {
+  --at-selection-bg: rgba(112, 172, 240, 0.18);
+  --at-cursor-bar-bg: rgba(255, 209, 102, 0.22);
+  --at-cursor-beat-bg: rgba(112, 172, 240, 0.95);
+  --at-highlight: #70acf0;
+}
+
+.alphaTabPlayer .at-selection div {
+  background: var(--at-selection-bg);
+}
+
+.alphaTabPlayer .at-cursor-bar {
+  background: var(--at-cursor-bar-bg);
+}
+
+.alphaTabPlayer .at-cursor-beat {
+  background: var(--at-cursor-beat-bg);
+  width: 3px;
+}
+
+.alphaTabPlayer .at-highlight * {
+  fill: var(--at-highlight);
+  stroke: var(--at-highlight);
+}
+```
+
+## Player Shell CSS
+
+The full homepage player is a custom React UI around `AlphaTabApi`. alphaTab does not provide the sidebar, footer, track buttons, progress bar, or layout selector. The website owns those styles.
+
+Important classes in `src/components/AlphaTabFull/styles.module.scss`:
+
+| Class | What it styles |
+| --- | --- |
+| `.at-wrap` | Overall full player wrapper |
+| `.at-content` | Main player body |
+| `.at-viewport` | Scrollable alphaTab sheet area |
+| `.at-sidebar` | Track list sidebar |
+| `.at-track` | One track item |
+| `.at-track-icon` | Instrument icon area |
+| `.at-track-name` | Track name text |
+| `.at-track-controls` | Mute, solo, and volume controls |
+| `.at-footer` | Player footer area |
+| `.at-player` | Control bar |
+| `.at-player-left` | Left-side transport and score info controls |
+| `.at-player-right` | Right-side toggles, layout, zoom, and logo controls |
+| `.at-time-slider` | Progress track |
+| `.at-time-slider-value` | Progress fill |
+| `.at-time-position` | Current time and end time |
+| `.at-logo` | "powered by" logo block |
+| `.at-overlay` | Loading overlay |
+| `.at-overlay-content` | Loading spinner card |
+
+The current website hardcodes many light colors:
+
+```scss
+.at-wrap {
+  background: #fff;
+}
+
+.at-footer {
+  background: #436d9d;
+  color: #fff;
+}
+
+.at-sidebar {
+  background: #f7f7f7;
+  color: #000;
+}
+```
+
+A dark-mode version should replace those hardcoded values with variables:
+
+```scss
+.at-wrap {
+  background: var(--at-shell-bg);
+  border-color: var(--at-border);
+}
+
+.at-sidebar,
+.at-logo,
+.at-overlay-content {
+  background: var(--at-panel-bg);
+  color: var(--at-text);
+}
+
+.at-footer,
+.at-player {
+  background: var(--at-control-bg);
+  color: var(--at-control-text);
+}
+
+.at-time-slider {
+  background: var(--at-progress-bg);
+}
+
+.at-time-slider-value {
+  background: var(--at-progress-value);
+}
+
+[data-theme="light"] {
+  --at-shell-bg: #ffffff;
+  --at-panel-bg: #f7f7f7;
+  --at-text: #111111;
+  --at-border: rgba(0, 0, 0, 0.12);
+  --at-control-bg: #436d9d;
+  --at-control-text: #ffffff;
+  --at-progress-bg: #d9d9d9;
+  --at-progress-value: #6ba5e4;
+}
+
+[data-theme="dark"] {
+  --at-shell-bg: #111318;
+  --at-panel-bg: #1a1d24;
+  --at-text: #f3f5f7;
+  --at-border: rgba(255, 255, 255, 0.16);
+  --at-control-bg: #26364a;
+  --at-control-text: #ffffff;
+  --at-progress-bg: #3a4250;
+  --at-progress-value: #70acf0;
+}
+```
+
+## Other Visual Settings Exposed by the Playground
+
+These are not dark-mode colors, but they affect the rendered result and often need a theme QA pass.
+
+### Display Settings
+
+| Setting path | Effect |
+| --- | --- |
+| `core.engine` | Renderer engine, usually `svg` or `html5` |
+| `display.scale` | Overall sheet scale |
+| `display.stretchForce` | Horizontal stretch |
+| `display.layoutMode` | Page, horizontal, or other layout modes |
+| `display.barsPerRow` | Fixed number of bars per system. Disabled with negative value. |
+| `display.startBar` | First bar to render |
+| `display.barCount` | Number of bars to render |
+| `display.justifyLastSystem` | Whether the last system stretches to full width |
+| `display.systemsLayoutMode` | How systems are laid out |
+
+### Padding Settings
+
+| Setting path | Effect |
+| --- | --- |
+| `display.padding[0]` | Horizontal page padding |
+| `display.padding[1]` | Vertical page padding |
+| `display.firstSystemPaddingTop` | Top padding for first system |
+| `display.systemPaddingTop` | Top padding for other systems |
+| `display.lastSystemPaddingBottom` | Bottom padding for last system |
+| `display.systemPaddingBottom` | Bottom padding for other systems |
+| `display.systemLabelPaddingLeft` | Left padding for system labels |
+| `display.systemLabelPaddingRight` | Right padding for system labels |
+| `display.accoladeBarPaddingRight` | Padding after accolade bar |
+| `display.notationStaffPaddingTop` | Top padding for notation staff |
+| `display.notationStaffPaddingBottom` | Bottom padding for notation staff |
+| `display.effectStaffPaddingTop` | Top padding for effect staff |
+| `display.effectStaffPaddingBottom` | Bottom padding for effect staff |
+| `display.firstStaffPaddingLeft` | Left padding for first staff |
+| `display.staffPaddingLeft` | Left padding for other staves |
+
+### Notation Settings
+
+| Setting path | Effect |
+| --- | --- |
+| `notation.fingeringMode` | Fingering display behavior |
+| `notation.rhythmMode` | Tab rhythm stem behavior |
+| `notation.rhythmHeight` | Rhythm stem height |
+| `notation.smallGraceTabNotes` | Small grace notes in tablature |
+| `notation.extendBendArrowsOnTiedNotes` | Bend arrow continuation |
+| `notation.extendLineEffectsToBeatEnd` | Whether line effects extend to beat end |
+| `notation.slurHeight` | Slur height |
+
+### Player Settings
+
+| Setting path or API property | Effect |
+| --- | --- |
+| `api.masterVolume` | Master volume |
+| `api.metronomeVolume` | Metronome volume |
+| `api.countInVolume` | Count-in volume |
+| `api.playbackSpeed` | Playback speed |
+| `api.isLooping` | Looping |
+| `player.playerMode` | Disabled, automatic, synthesizer, backing track, or external media depending on mode |
+| `player.enableCursor` | Shows playback cursors |
+| `player.enableAnimatedBeatCursor` | Animates the beat cursor |
+| `player.enableElementHighlighting` | Adds `.at-highlight` during playback |
+| `player.enableUserInteraction` | Enables user selection and interaction |
+| `player.scrollOffsetX` | Horizontal scroll offset |
+| `player.scrollOffsetY` | Vertical scroll offset |
+| `player.scrollMode` | Off, continuous, or other scroll modes |
+
+## Score Stylesheet Settings
+
+The playground also mutates `api.score!.stylesheet`. These settings are stored on the score, not in `api.settings`.
+
+| Stylesheet property | Effect |
+| --- | --- |
+| `hideDynamics` | Hide dynamic markings |
+| `bracketExtendMode` | Bracket extension behavior |
+| `useSystemSignSeparator` | System sign separator |
+| `globalDisplayTuning` | Show guitar tuning globally |
+| `globalDisplayChordDiagramsOnTop` | Show chord diagrams above the score |
+| `singleTrackTrackNamePolicy` | Track name policy for one track |
+| `multiTrackTrackNamePolicy` | Track name policy for multiple tracks |
+| `firstSystemTrackNameMode` | First-system track name format |
+| `firstSystemTrackNameOrientation` | First-system track name orientation |
+| `otherSystemsTrackNameMode` | Other-system track name format |
+| `otherSystemsTrackNameOrientation` | Other-system track name orientation |
+| `multiTrackMultiBarRest` | Multi-bar rests across tracks |
+| `perTrackMultiBarRest` | Per-track multi-bar rests |
+
+The playground calls `api.render()` after changing these because they affect layout and drawing.
+
+## Recommended Light/Dark Integration
+
+In a React app, watch Docusaurus or app theme state, then update alphaTab settings and model colors.
+
+```tsx
+import * as alphaTab from "@coderline/alphatab";
+import { useEffect } from "react";
+
+function useAlphaTabColorMode(api: alphaTab.AlphaTabApi | undefined) {
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    const apply = () => {
+      const mode =
+        document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+
+      applyAlphaTabTheme(api, mode);
+
+      if (api.score) {
+        applyModelColors(api.score, mode);
+      }
+
+      api.render();
+    };
+
+    apply();
+
+    const observer = new MutationObserver(apply);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return () => observer.disconnect();
+  }, [api]);
+}
+```
+
+For the initial load, apply model colors in `scoreLoaded` before the first render where possible:
+
+```ts
+api.scoreLoaded.on(score => {
+  const mode =
+    document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  applyModelColors(score, mode);
+});
+```
+
+## What You Cannot Fully Customize
+
+These are the practical boundaries visible from the website source and public guide behavior:
+
+| Area | Boundary |
+| --- | --- |
+| Automatic dark mode | alphaTab does not automatically read Docusaurus or CSS theme variables for sheet glyph colors. You must update `display.resources`, model styles, and CSS yourself. |
+| Live data model mutations | Changing `score`, `track`, `bar`, `voice`, `beat`, or `note` styles is not observed automatically. Call `api.render()`. |
+| CSS access to notation internals | CSS can style playback overlay DOM nodes and SVG highlights. It is not a complete theming API for every notation primitive, especially outside SVG. |
+| `.at-highlight` | Only works for SVG rendering in the browser. Use `core.engine = "svg"` if you depend on CSS highlighting. |
+| Individual effects | Some effects and annotations are intentionally coarse. For several effect types, the first note or first beat with the effect decides the color. |
+| Full player UI | The sidebar, footer, buttons, sliders, video panel, settings panel, and track list are website React/CSS, not built-in alphaTab UI. You can customize them because you own them, but alphaTab will not generate the same shell for you. |
+| Background color of the sheet | The rendered glyph colors are alphaTab settings, but the surrounding sheet background is your container CSS. Set both for dark mode. |
+| Performance | `api.render()` triggers layout and drawing. Avoid re-rendering on every small UI change such as drag or color picker movement unless debounced. |
+
+## Checklist
+
+For a complete light/dark implementation:
+
+1. Set player shell CSS variables for light and dark mode.
+2. Set alphaTab overlay CSS variables for `.at-selection`, `.at-cursor-bar`, `.at-cursor-beat`, and `.at-highlight`.
+3. Update `display.resources.*Color` when the mode changes.
+4. Update model `style.colors` for score-specific logic when the mode changes.
+5. Call `api.updateSettings()` after changing settings.
+6. Call `api.render()` after changing rendering settings or model styles.
+7. Use SVG if you need `.at-highlight` element coloring.
+8. Debounce color picker changes before re-rendering.

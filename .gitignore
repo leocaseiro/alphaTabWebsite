@@ -21,3 +21,4 @@ yarn-error.log*
 
 src/alphatabdoc/
 docs/reference/types/
+.gstack/
