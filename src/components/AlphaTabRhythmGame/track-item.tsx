@@ -48,7 +48,6 @@ export const StaffItem: React.FC<StaffItemProps> = ({ api, staff }) => {
                 <button
                     type="button"
                     className={`button ${styles['icon-button']} button--sm ${staffOptions.showStandardNotation ? 'button--primary' : 'button--secondary button--outline'}`}
-                    disabled={staff.isPercussion}
                     onClick={() => setStaffOptions(o => ({ ...o, showStandardNotation: !o.showStandardNotation }))}
                     data-tooltip-content="Standard Notation"
                     data-tooltip-id="tooltip-playground">
@@ -58,7 +57,6 @@ export const StaffItem: React.FC<StaffItemProps> = ({ api, staff }) => {
                     type="button"
                     className={`button ${styles['icon-button']} button--sm ${staffOptions.showTablature ? 'button--primary' : 'button--secondary button--outline'}`}
                     onClick={() => setStaffOptions(o => ({ ...o, showTablature: !o.showTablature }))}
-                    disabled={staff.isPercussion}
                     data-tooltip-content="Guitar Tabs"
                     data-tooltip-id="tooltip-playground">
                     5⤴
@@ -67,7 +65,6 @@ export const StaffItem: React.FC<StaffItemProps> = ({ api, staff }) => {
                     type="button"
                     className={`button ${styles['icon-button']} button--sm ${staffOptions.showSlash ? 'button--primary' : 'button--secondary button--outline'}`}
                     onClick={() => setStaffOptions(o => ({ ...o, showSlash: !o.showSlash }))}
-                    disabled={staff.isPercussion}
                     data-tooltip-content="Slash Notation"
                     data-tooltip-id="tooltip-playground">
                     𝄍
@@ -76,7 +73,6 @@ export const StaffItem: React.FC<StaffItemProps> = ({ api, staff }) => {
                     type="button"
                     className={`button ${styles['icon-button']} button--sm ${staffOptions.showNumbered ? 'button--primary' : 'button--secondary button--outline'}`}
                     onClick={() => setStaffOptions(o => ({ ...o, showNumbered: !o.showNumbered }))}
-                    disabled={staff.isPercussion}
                     data-tooltip-content="Numbered Notation"
                     data-tooltip-id="tooltip-playground">
                     &#818;2&#818;
