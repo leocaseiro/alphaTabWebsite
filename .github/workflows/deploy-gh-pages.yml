@@ -25,6 +25,7 @@ jobs:
           node-version: lts/*
           cache: npm
       - run: npm install
+      - run: npm run generate-alphatabdoc
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
